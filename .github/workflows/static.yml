@@ -30,20 +30,20 @@ jobs:
           node-version: "20"
           cache: 'npm'
 
-      - name: Clean install dependencies
+      - name: Install dependencies
         run: |
+          npm cache clean --force
           rm -rf node_modules package-lock.json
-          npm install react@latest react-dom@latest --save
+          npm install --no-package-lock
           npm install @vitejs/plugin-react@latest --save-dev
-          npm install @types/react@latest @types/react-dom@latest --save-dev
-          npm install
+          npm install react@latest react-dom@latest --save
+          npm install @radix-ui/react-context@latest --force
 
       - name: Build
         run: |
           npm run build
         env:
           NODE_ENV: production
-          VITE_BASE_URL: ${{ github.event.repository.html_url }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v3
