@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import { useToast } from "./ui/use-toast";
 import { useAccount } from "@/integrations/wallet/use-account";
-import { Loader2, ExternalLink, Clock, Users, Rocket, Plus } from "lucide-react";
+import { Rocket } from "lucide-react";
+import { Button } from "./ui/button";
 import {
   Dialog,
   DialogContent,
@@ -13,11 +12,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./ui/dialog";
-import {
-  Card,
-  CardContent,
-} from "./ui/card";
-import { cn } from "@/lib/utils";
+import { BoostSlotCard } from "./ui/BoostSlotCard";
+import { BoostSubmissionForm } from "./ui/BoostSubmissionForm";
 
 interface BoostSlot {
   id: number;
@@ -36,108 +32,10 @@ interface WaitlistProject {
   id: number;
   project_name: string;
   project_logo: string;
+  project_link: string;
+  telegram_link?: string;
+  chart_link?: string;
 }
-
-const SubmissionForm = ({
-  projectName,
-  setProjectName,
-  projectLogo,
-  setProjectLogo,
-  projectLink,
-  setProjectLink,
-  telegramLink,
-  setTelegramLink,
-  chartLink,
-  setChartLink,
-  handleSubmit,
-  isSubmitting,
-  isConnected,
-}: {
-  projectName: string;
-  setProjectName: (value: string) => void;
-  projectLogo: string;
-  setProjectLogo: (value: string) => void;
-  projectLink: string;
-  setProjectLink: (value: string) => void;
-  telegramLink: string;
-  setTelegramLink: (value: string) => void;
-  chartLink: string;
-  setChartLink: (value: string) => void;
-  handleSubmit: () => void;
-  isSubmitting: boolean;
-  isConnected: boolean;
-}) => (
-  <div className="space-y-6">
-    <div className="space-y-4 rounded-lg bg-crypto-dark/30 p-4 border border-crypto-primary/20">
-      <h4 className="font-medium text-crypto-primary">Boost Rules</h4>
-      <ul className="space-y-2 text-sm text-gray-400">
-        <li className="flex items-start gap-2">
-          <Clock className="w-4 h-4 text-crypto-primary shrink-0 mt-0.5" />
-          <div>
-            <p className="font-medium">Maximum Duration</p>
-            <p>Projects can be boosted for up to 48 hours</p>
-          </div>
-        </li>
-        <li className="flex items-start gap-2">
-          <Users className="w-4 h-4 text-crypto-primary shrink-0 mt-0.5" />
-          <div>
-            <p className="font-medium">Contribution Rates</p>
-            <ul className="space-y-1 mt-1">
-              <li>• $5.00 = 1 hour boost time</li>
-              <li>• $2.50 = 30 minutes boost time</li>
-            </ul>
-          </div>
-        </li>
-        <li className="flex items-start gap-2">
-          <Rocket className="w-4 h-4 text-crypto-primary shrink-0 mt-0.5" />
-          <div>
-            <p className="font-medium">Ranking System</p>
-            <p>Projects are ranked by number of contributors and total contributions</p>
-          </div>
-        </li>
-      </ul>
-    </div>
-
-    <div className="space-y-4">
-      <Input
-        placeholder="Project Name"
-        value={projectName}
-        onChange={(e) => setProjectName(e.target.value)}
-        required
-      />
-      <Input
-        placeholder="Logo URL"
-        value={projectLogo}
-        onChange={(e) => setProjectLogo(e.target.value)}
-        required
-      />
-      <Input
-        placeholder="Project URL"
-        value={projectLink}
-        onChange={(e) => setProjectLink(e.target.value)}
-        required
-      />
-      <Input
-        placeholder="Telegram Link (Optional)"
-        value={telegramLink}
-        onChange={(e) => setTelegramLink(e.target.value)}
-      />
-      <Input
-        placeholder="Chart Link (Optional)"
-        value={chartLink}
-        onChange={(e) => setChartLink(e.target.value)}
-      />
-      <Button
-        onClick={handleSubmit}
-        className="w-full"
-        disabled={!isConnected || isSubmitting}
-      >
-        {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-        Submit Project
-      </Button>
-    </div>
-  </div>
-);
 
 export const Boost = () => {
   const { toast } = useToast();
@@ -171,54 +69,85 @@ export const Boost = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("boost_waitlist")
-        .select("id, project_name, project_logo")
+        .select("*")  // Changed from specific fields to all fields
         .order("created_at", { ascending: true });
-
+  
       if (error) throw error;
       return data as WaitlistProject[];
     },
     refetchInterval: 5000,
   });
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (values: FormData) => {
     if (!isConnected) {
       toast({
-        title: "Connect Wallet",
-        description: "Please connect your wallet to submit a project",
+        title: "Error",
+        description: "Please connect your wallet first",
         variant: "destructive",
       });
       return;
     }
 
     setIsSubmitting(true);
+
     try {
-      const { error } = await supabase.from("boost_waitlist").insert({
-        project_name: projectName,
-        project_logo: projectLogo,
-        project_link: projectLink,
-        telegram_link: telegramLink || null,
-        chart_link: chartLink || null,
-        wallet_address: address,
-      });
+      // Find first available slot
+      const availableSlotIndex = Array.from({ length: 5 }).findIndex(
+        (_, index) => !boostSlots?.find(slot => slot.slot_number === index + 1)
+      );
 
-      if (error) throw error;
+      if (availableSlotIndex !== -1) {
+        // If there's an available slot, add directly to boost_slots
+        const endTime = new Date();
+        endTime.setHours(endTime.getHours() + 48); // 48 hours boost duration
 
-      toast({
-        title: "Project Submitted",
-        description: "Your project has been added to the waitlist",
-      });
+        const { error: insertError } = await supabase
+          .from("boost_slots")
+          .insert({
+            project_name: values.project_name,
+            project_logo: values.project_logo,
+            project_link: values.project_link,
+            telegram_link: values.telegram_link,
+            chart_link: values.chart_link,
+            start_time: new Date().toISOString(),
+            end_time: endTime.toISOString(),
+            total_contributions: 0,
+            contributor_count: 0,
+            slot_number: availableSlotIndex + 1
+          });
 
-      // Reset form
-      setProjectName("");
-      setProjectLogo("");
-      setProjectLink("");
-      setTelegramLink("");
-      setChartLink("");
+        if (insertError) throw insertError;
+
+        toast({
+          title: "Success",
+          description: "Project has been added to boost slot",
+        });
+      } else {
+        // If no slots available, add to waitlist
+        const { error } = await supabase.from("boost_waitlist").insert([
+          {
+            project_name: values.project_name,
+            project_logo: values.project_logo,
+            project_link: values.project_link,
+            telegram_link: values.telegram_link,
+            chart_link: values.chart_link,
+          },
+        ]);
+
+        if (error) throw error;
+
+        toast({
+          title: "Success",
+          description: "Project has been added to waitlist",
+        });
+      }
+
       setDialogOpen(false);
     } catch (error) {
+      console.error(error);
       toast({
         title: "Error",
-        description: "Failed to submit project. Please try again.",
+        description: "Failed to submit project. Try again.",
         variant: "destructive",
       });
     } finally {
@@ -226,16 +155,70 @@ export const Boost = () => {
     }
   };
 
-  // Always create placeholder slots
-  const slots = Array.from({ length: 5 }, (_, i) => ({
-    id: i,
-    slot_number: i + 1,
-  }));
+  const formatTimeLeft = (endTime: string) => {
+    const end = new Date(endTime).getTime();
+    const now = Date.now();
+    const diff = end - now;
 
-  // Silently replace placeholders with real data when available
-  if (boostSlots && boostSlots.length > 0) {
-    slots.splice(0, boostSlots.length, ...boostSlots);
-  }
+    if (diff <= 0) return "Ended";
+
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+    return `${hours}h ${minutes}m`;
+  };
+
+  const handleSlotClick = async (index: number) => {
+    // If there are projects in waitlist, move the first one to boost_slots
+    if (waitlistProjects.length > 0) {
+      const projectToBoost = waitlistProjects[0];
+      const endTime = new Date();
+      endTime.setHours(endTime.getHours() + 48); // 48 hours boost duration
+  
+      try {
+        // Start a transaction
+        const { error: insertError } = await supabase
+          .from("boost_slots")
+          .insert({
+            project_name: projectToBoost.project_name,
+            project_logo: projectToBoost.project_logo,
+            project_link: projectToBoost.project_link,
+            telegram_link: projectToBoost.telegram_link,
+            chart_link: projectToBoost.chart_link,
+            start_time: new Date().toISOString(),
+            end_time: endTime.toISOString(),
+            total_contributions: 0,
+            contributor_count: 0,
+            slot_number: index + 1
+          });
+  
+        if (insertError) throw insertError;
+  
+        // Remove from waitlist
+        const { error: deleteError } = await supabase
+          .from("boost_waitlist")
+          .delete()
+          .eq("id", projectToBoost.id);
+  
+        if (deleteError) throw deleteError;
+  
+        toast({
+          title: "Success",
+          description: "Project has been moved to boost slot",
+        });
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: "Error",
+          description: "Failed to move project to boost slot",
+          variant: "destructive",
+        });
+      }
+    } else {
+      // If no projects in waitlist, show submission form
+      setDialogOpen(true);
+    }
+  };
 
   return (
     <div className="space-y-4 bg-crypto-dark/10 p-4 rounded-lg border border-crypto-primary/10">
@@ -254,9 +237,9 @@ export const Boost = () => {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Submit Your Project</DialogTitle>
+                <DialogTitle>Submit Project</DialogTitle>
               </DialogHeader>
-              <SubmissionForm
+              <BoostSubmissionForm
                 projectName={projectName}
                 setProjectName={setProjectName}
                 projectLogo={projectLogo}
@@ -275,105 +258,54 @@ export const Boost = () => {
           </Dialog>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          {slots.map((slot) => {
-            const isPlaceholder = !('project_name' in slot);
-            return (
-              <Card 
-                key={slot.id} 
-                className={cn(
-                  "bg-crypto-dark/20 border-crypto-primary/10 transition-all duration-200",
-                  isPlaceholder && "cursor-pointer hover:bg-crypto-dark/30 hover:border-crypto-primary/20 hover:scale-102"
-                )}
-                onClick={() => isPlaceholder && setDialogOpen(true)}
-              >
-                <CardContent className="p-3">
-                  <div className="flex flex-col space-y-3">
-                    <div className="w-12 h-12 mx-auto rounded-full overflow-hidden bg-gradient-to-br from-crypto-primary/10 to-crypto-dark flex items-center justify-center">
-                      {isPlaceholder ? (
-                        <Plus className="w-6 h-6 text-crypto-primary/60" />
-                      ) : (
-                        <img
-                          src={slot.project_logo}
-                          alt={slot.project_name}
-                          className="w-full h-full object-cover"
-                        />
-                      )}
-                    </div>
-                    <div className="text-center">
-                      <h4 className="font-medium truncate mb-1 text-crypto-primary/80">
-                        {isPlaceholder ? "Available Slot" : slot.project_name}
-                      </h4>
-                      {!isPlaceholder && (
-                        <a
-                          href={slot.project_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-crypto-primary/60 hover:text-crypto-primary/80 inline-flex items-center gap-1 text-sm"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Visit <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs text-gray-500 text-center">
-                      <div>
-                        <Clock className="w-3 h-3 mx-auto mb-1" />
-                        {isPlaceholder ? "0h" : slot.end_time}
-                      </div>
-                      <div>
-                        <Users className="w-3 h-3 mx-auto mb-1" />
-                        {isPlaceholder ? "0" : slot.contributor_count}
-                      </div>
-                      <div>
-                        <div className="w-3 h-3 mx-auto mb-1">$</div>
-                        {isPlaceholder ? "0.00" : slot.total_contributions.toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {Array.from({ length: 5 }).map((_, index) => (
+            <BoostSlotCard
+            key={index}
+            slot={boostSlots?.[index] || null}
+            index={index}
+            formatTimeLeft={formatTimeLeft}
+            onClick={() => handleSlotClick(index)}
+          />
+          ))}
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-2 border-t border-crypto-primary/5">
-        <div className="flex-1">
-          <div className="flex items-center gap-4 mb-2">
-            <h4 className="text-sm font-medium text-gray-400">Waitlist</h4>
-            {waitlistProjects.length > 0 && (
+      {waitlistProjects.length > 0 && (
+        <div className="flex items-center justify-between pt-2 border-t border-crypto-primary/5">
+          <div className="flex-1">
+            <div className="flex items-center gap-4 mb-2">
+              <h4 className="text-sm font-medium text-gray-400">Waitlist</h4>
               <p className="text-xs text-gray-500">
                 {waitlistProjects.length} project{waitlistProjects.length !== 1 ? 's' : ''} waiting
               </p>
-            )}
-          </div>
-          <div className="flex gap-2">
-            {/* Fixed 10 slots for waitlist */}
-            {Array.from({ length: 10 }).map((_, index) => {
-              const project = waitlistProjects[index];
-              return (
-                <div
-                  key={index}
-                  className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-crypto-primary/20 to-crypto-dark"
-                  title={project?.project_name}
-                >
-                  {project ? (
-                    <img
-                      src={project.project_logo}
-                      alt={project.project_name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <div className="w-2 h-2 rounded-full bg-crypto-primary/20" />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            </div>
+            <div className="flex gap-2">
+              {Array.from({ length: 10 }).map((_, index) => {
+                const project = waitlistProjects[index];
+                return (
+                  <div
+                    key={index}
+                    className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-crypto-primary/20 to-crypto-dark"
+                    title={project?.project_name}
+                  >
+                    {project ? (
+                      <img
+                        src={project.project_logo}
+                        alt={project.project_name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="w-2 h-2 rounded-full bg-crypto-primary/20" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
