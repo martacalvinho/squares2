@@ -4,26 +4,22 @@ import path from "path";
 
 export default defineConfig({
   base: "/crypto-squares-auction/",
-  plugins: [react()],
+  plugins: [react({
+    jsxRuntime: 'classic',
+    jsxImportSource: 'react',
+    babel: {
+      plugins: [
+        ['@babel/plugin-transform-react-jsx']
+      ]
+    }
+  })],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "react/jsx-runtime": "react/jsx-runtime.js"
     }
   },
-  build: {
-    rollupOptions: {
-      external: ['react/jsx-runtime'],
-      output: {
-        globals: {
-          'react/jsx-runtime': 'jsxRuntime'
-        }
-      }
-    }
-  },
-  optimizeDeps: {
-    include: ['react', 'react-dom'],
-    esbuildOptions: {
-      jsx: 'automatic'
-    }
+  define: {
+    'process.env': {}
   }
 });
