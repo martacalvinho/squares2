@@ -15,47 +15,47 @@ const fetchSolPriceWithCache = async (): Promise<number> => {
   }
 
   try {
-    // Try CoinGecko first
+    // Try Binance API first
     try {
-      const response = await fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
-        {
-          headers: {
-            'Accept': 'application/json',
-            'mode': 'cors'
-          }
-        }
-      );
-      
+      const response = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT');
       if (response.ok) {
         const data = await response.json();
-        lastPrice = data.solana.usd;
+        lastPrice = parseFloat(data.price);
         lastFetchTime = now;
         return lastPrice;
       }
-    } catch (e) {
-      console.warn('CoinGecko API failed, trying fallback');
+    } catch (e: unknown) {
+      console.warn('Binance API failed, trying fallback:', e instanceof Error ? e.message : 'Unknown error');
     }
 
-    // Fallback to Binance API
-    const binanceResponse = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT');
-    if (binanceResponse.ok) {
-      const data = await binanceResponse.json();
-      lastPrice = parseFloat(data.price);
-      lastFetchTime = now;
-      return lastPrice;
+    // Fallback to Jupiter API
+    try {
+      const response = await fetch('https://price.jup.ag/v4/price?ids=SOL');
+      if (response.ok) {
+        const data = await response.json();
+        const price = data.data.SOL.price;
+        if (typeof price === 'number' && !isNaN(price)) {
+          lastPrice = price;
+          lastFetchTime = now;
+          return price;
+        }
+      }
+    } catch (e: unknown) {
+      console.warn('Jupiter API failed:', e instanceof Error ? e.message : 'Unknown error');
     }
 
     // If both APIs fail and we have a cached price, use it even if expired
-    if (lastPrice) {
+    if (lastPrice !== null && !isNaN(lastPrice)) {
       console.warn('Using expired cached price');
       return lastPrice;
     }
 
-    // Final fallback: use a hardcoded approximate price
-    return 95; // Approximate SOL price, update this regularly
-  } catch (error) {
-    console.error('Error fetching SOL price:', error);
+    // If both APIs fail and we don't have a cached price, use a hardcoded approximate price
+    const fallbackPrice = 95; // Approximate SOL price
+    lastPrice = fallbackPrice;
+    return fallbackPrice;
+  } catch (error: unknown) {
+    console.error('Error fetching SOL price:', error instanceof Error ? error.message : 'Unknown error');
     return lastPrice || 95; // Return cached price or fallback
   }
 };
