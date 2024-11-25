@@ -30,16 +30,16 @@ jobs:
           node-version: "20"
           cache: 'npm'
 
-      - name: Clean install
+      - name: Clean install dependencies
         run: |
-          rm -rf node_modules package-lock.json
-          npm install --legacy-peer-deps
-          npm install @vitejs/plugin-react-swc@latest --force
+          npm clean-install
+          npm install @vitejs/plugin-react@latest --save-dev
+          npm install @types/react@latest @types/react-dom@latest --save-dev
 
       - name: Build
-        run: |
-          npm run build
-          ls -la dist/
+        run: npm run build
+        env:
+          VITE_BASE_URL: ${{ github.event.repository.html_url }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v3
