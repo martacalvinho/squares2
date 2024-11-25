@@ -33,15 +33,16 @@ jobs:
       - name: Clean install dependencies
         run: |
           rm -rf node_modules package-lock.json
-          npm install
-          npm install rollup@latest --force
-          npm install @rollup/rollup-linux-x64-gnu --force
+          npm install react@latest react-dom@latest --save
           npm install @vitejs/plugin-react@latest --save-dev
           npm install @types/react@latest @types/react-dom@latest --save-dev
+          npm install
 
       - name: Build
-        run: npm run build
+        run: |
+          npm run build
         env:
+          NODE_ENV: production
           VITE_BASE_URL: ${{ github.event.repository.html_url }}
 
       - name: Setup Pages
