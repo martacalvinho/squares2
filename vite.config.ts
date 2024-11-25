@@ -5,6 +5,11 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  base: "/crypto-squares-auction/",
+  plugins: [
+    react(),
+    mode === 'development' && componentTagger(),
+  ].filter(Boolean),
   server: {
     port: 3000,
     host: true, 
@@ -24,6 +29,8 @@ export default defineConfig(({ mode }) => ({
       '@solana/wallet-adapter-base',
       '@solana/wallet-adapter-wallets',
       '@solana/wallet-adapter-react-ui',
+      "buffer", 
+      "stream-browserify"
     ],
     exclude: ['@solana/wallet-adapter-react-ui/styles.css']
   },
@@ -31,8 +38,11 @@ export default defineConfig(({ mode }) => ({
     'process.env': {},
     'global': {}
   },
-  plugins: [
-    react(),
-    mode === 'development' && componentTagger(),
-  ].filter(Boolean),
+  build: {
+    outDir: "dist",
+    sourcemap: true,
+    commonjsOptions: {
+      include: []
+    }
+  }
 }));
