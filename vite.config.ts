@@ -1,53 +1,29 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
 
-// https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  base: "./crypto-squares-auction/",
-  plugins: [
-    react({
-      jsxRuntime: 'classic',
-    }),
-    mode === 'development' && componentTagger(),
-  ].filter(Boolean),
-  server: {
-    port: 3000,
-    host: true, 
-    strictPort: true,
-  },
+export default defineConfig({
+  base: "/crypto-squares-auction/",
+  plugins: [react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "stream": "stream-browserify",
-      "buffer": "buffer"
+    }
+  },
+  build: {
+    rollupOptions: {
+      external: ['react/jsx-runtime'],
+      output: {
+        globals: {
+          'react/jsx-runtime': 'jsxRuntime'
+        }
+      }
     }
   },
   optimizeDeps: {
-    include: [
-      '@solana/web3.js',
-      '@solana/wallet-adapter-react',
-      '@solana/wallet-adapter-base',
-      '@solana/wallet-adapter-wallets',
-      '@solana/wallet-adapter-react-ui',
-      "buffer", 
-      "stream-browserify",
-      'react', 
-      'react-dom'
-    ],
-    exclude: ['@solana/wallet-adapter-react-ui/styles.css']
-  },
-  define: {
-    'process.env': {},
-    'global': {}
-  },
-  build: {
-    outDir: "dist",
-    sourcemap: true,
-    commonjsOptions: {
-      include: [],
-      transformMixedEsModules: true
+    include: ['react', 'react-dom'],
+    esbuildOptions: {
+      jsx: 'automatic'
     }
   }
-}));
+});
