@@ -8,7 +8,7 @@ import { ActivityFeed } from './ActivityFeed';
 import { SearchFilters } from './SearchFilters';
 import { Comments } from './Comments';
 import { ShareButtons } from './ShareButtons';
-import { Boost } from './Boost';
+import { Boost } from './boost/Boost';
 import { useAccount } from '@/integrations/wallet/use-account';
 import { MobileDropdown } from './MobileDropdown';
 

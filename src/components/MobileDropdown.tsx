@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp, Activity, MessageSquare, Rocket } from 'lucide-
 import { Button } from './ui/button';
 import { ActivityFeed } from './ActivityFeed';
 import { Comments } from './Comments';
-import { Boost } from './Boost';
+import { Boost } from './boost/Boost';
 import { cn } from '@/lib/utils';
 
 export const MobileDropdown = () => {

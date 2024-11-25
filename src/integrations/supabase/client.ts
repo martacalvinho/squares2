@@ -24,6 +24,9 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
       'Content-Type': 'application/json',
       'Prefer': 'return=minimal'
     }
+  },
+  realtime: {
+    enabled: true,
   }
 });
 

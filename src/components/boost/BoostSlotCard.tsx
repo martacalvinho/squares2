@@ -1,5 +1,5 @@
 import { Plus } from "lucide-react";
-import { Card, CardContent } from "./card";
+import { Card, CardContent } from "../ui/card";
 import { cn } from "@/lib/utils";
 import { BoostStats } from "./BoostStats";
 

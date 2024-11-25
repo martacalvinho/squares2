@@ -1,6 +1,6 @@
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Rules } from './Rules';
-import { BoostButton } from './BoostButton';
+import { BoostButton } from './boost/BoostButton';
 
 export const Header = () => {
   return (

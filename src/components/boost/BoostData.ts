@@ -10,16 +10,46 @@ export function useBoostData() {
   const { data: boostSlots = [] } = useQuery({
     queryKey: ["boost-slots"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First get the slots
+      const { data: slots, error: slotsError } = await supabase
         .from('boost_slots')
         .select('*')
         .order('slot_number', { ascending: true });
 
-      if (error) {
-        console.error('Error fetching boost slots:', error);
-        throw error;
+      if (slotsError) {
+        console.error('Error fetching boost slots:', slotsError);
+        throw slotsError;
       }
-      return data as BoostSlot[];
+
+      // Then get contributions for each slot
+      const slotsWithContributions = await Promise.all(
+        slots.map(async (slot) => {
+          const { data: contributions, error: contribError } = await supabase
+            .from('boost_contributions')
+            .select('amount')
+            .eq('slot_id', slot.id);
+
+          if (contribError) {
+            console.error('Error fetching contributions:', contribError);
+            return slot;
+          }
+
+          const totalContributions = (contributions || []).reduce(
+            (sum, c) => sum + (c.amount || 0),
+            slot.initial_contribution
+          );
+
+          const contributorCount = (contributions || []).length + 1; // +1 for initial contributor
+
+          return {
+            ...slot,
+            total_contributions: totalContributions,
+            contributor_count: contributorCount
+          };
+        })
+      );
+
+      return slotsWithContributions;
     },
     refetchInterval: 5000,
   });
