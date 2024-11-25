@@ -7,7 +7,10 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   base: "/crypto-squares-auction/",
   plugins: [
-    react(),
+    react({
+      jsxRuntime: 'automatic',
+      jsxImportSource: 'react'
+    }),
     mode === 'development' && componentTagger(),
   ].filter(Boolean),
   server: {
@@ -19,6 +22,7 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "stream": "stream-browserify",
+      "react/jsx-runtime": "react/jsx-runtime.js",
       "buffer": "buffer"
     }
   },
@@ -30,7 +34,9 @@ export default defineConfig(({ mode }) => ({
       '@solana/wallet-adapter-wallets',
       '@solana/wallet-adapter-react-ui',
       "buffer", 
-      "stream-browserify"
+      "stream-browserify",
+      'react', 
+      'react-dom'
     ],
     exclude: ['@solana/wallet-adapter-react-ui/styles.css']
   },
@@ -42,7 +48,8 @@ export default defineConfig(({ mode }) => ({
     outDir: "dist",
     sourcemap: true,
     commonjsOptions: {
-      include: []
+      include: [],
+      transformMixedEsModules: true
     }
   }
 }));
