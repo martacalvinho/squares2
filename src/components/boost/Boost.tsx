@@ -36,7 +36,7 @@ export const Boost = () => {
   const [slots, setSlots] = useState<BoostSlot[]>([]);
   const [waitlistProjects, setWaitlistProjects] = useState<WaitlistProject[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [solPrice, setSolPrice] = useState(0);
+  const [solPrice, setSolPrice] = useState<number>(0);
   const { connected } = useWallet();
   const { toast } = useToast();
 
@@ -152,6 +152,33 @@ export const Boost = () => {
       supabase.removeChannel(waitlistChannel);
     };
   }, []);
+
+  // Fetch SOL price
+  useEffect(() => {
+    const fetchSolPrice = async () => {
+      try {
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+        const data = await response.json();
+        if (data?.solana?.usd) {
+          setSolPrice(Number(data.solana.usd));
+        } else {
+          throw new Error('Invalid price data');
+        }
+      } catch (error) {
+        console.error('Error fetching SOL price:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch SOL price. Please try again later.',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    fetchSolPrice();
+    // Refresh price every minute
+    const interval = setInterval(fetchSolPrice, 60000);
+    return () => clearInterval(interval);
+  }, [toast]);
 
   // Initial fetch of boost slots and waitlist
   useEffect(() => {
