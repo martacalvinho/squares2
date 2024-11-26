@@ -100,45 +100,43 @@ export const StatsBar = ({ stats, variant = 'default' }: StatsBarProps) => {
     }
   ];
 
-  const visibleStats = variant === 'mobile' 
-    ? statItems
-    : statItems.filter(stat => !stat.mobileHide);
-
   return (
     <div className={cn(
-      "w-full",
-      variant === 'mobile' ? "grid grid-cols-2 gap-4" : "flex flex-wrap gap-4"
+      "flex gap-3",
+      variant === 'mobile' && "flex-col"
     )}>
-      {visibleStats.map((stat, index) => (
-        <TooltipProvider key={index}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors",
-                  variant === 'mobile' && "flex-col items-center text-center px-2"
-                )}
-              >
-                <div className={cn(
-                  "p-2 rounded-lg bg-gradient-to-r",
-                  stat.color
-                )}>
-                  <stat.icon className="w-4 h-4 text-white" />
+      {statItems
+        .filter(item => variant === 'mobile' || !item.mobileHide)
+        .map((stat, index) => (
+          <TooltipProvider key={stat.label}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 rounded-lg",
+                    "bg-gradient-to-r from-crypto-dark/60 to-crypto-dark/40",
+                    "border border-crypto-primary/5",
+                    "hover:border-crypto-primary/10 transition-all duration-300",
+                    variant === 'mobile' && "justify-between w-full"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <stat.icon className="w-4 h-4 text-crypto-primary/50" />
+                    <span className="text-xs text-gray-400">{stat.label}</span>
+                  </div>
+                  <span className="text-sm font-semibold text-crypto-primary">
+                    {stat.value}
+                  </span>
                 </div>
-                <div className="min-w-[60px]">
-                  <p className="text-sm text-muted-foreground">{stat.label}</p>
-                  <p className="font-medium">{stat.value}</p>
-                </div>
-              </div>
-            </TooltipTrigger>
-            {stat.tooltip && (
-              <TooltipContent>
-                <p>{stat.tooltip}</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
-      ))}
+              </TooltipTrigger>
+              {stat.tooltip && (
+                <TooltipContent>
+                  <p>{stat.tooltip}</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        ))}
     </div>
   );
 };

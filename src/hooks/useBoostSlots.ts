@@ -30,109 +30,129 @@ export const useBoostSlots = () => {
   return useQuery({
     queryKey: ['boost-slots'],
     queryFn: async () => {
-      // Fetch active boost slots
-      const { data: slots, error: slotsError } = await supabase
-        .from('boost_slots')
-        .select(`
-          *,
-          project:project_id (
-            name,
-            logo,
-            description,
-            website,
-            twitter,
-            telegram,
-            chart
-          )
-        `)
-        .order('slot_number', { ascending: true });
+      try {
+        console.log('\n=== BOOST SLOT CHECK START ===');
+        
+        // 1. Get current slots and find empty ones
+        const { data: currentSlots } = await supabase
+          .from('boost_slots')
+          .select('*')
+          .order('slot_number', { ascending: true });
 
-      if (slotsError) {
-        console.error('Error fetching boost slots:', slotsError);
-        throw slotsError;
-      }
+        // Track which slot numbers are taken
+        const usedSlots = new Set((currentSlots || []).map(s => s.slot_number));
+        const emptySlots = [];
+        for (let i = 1; i <= 5; i++) {
+          if (!usedSlots.has(i)) emptySlots.push(i);
+        }
 
-      // Fetch waitlist projects
-      const { data: waitlist, error: waitlistError } = await supabase
-        .from('boost_waitlist')
-        .select('*')
-        .order('created_at', { ascending: true })
-        .limit(5);
+        console.log('Current slots:', currentSlots?.length || 0);
+        console.log('Empty slots:', emptySlots);
 
-      if (waitlistError) {
-        console.error('Error fetching waitlist:', waitlistError);
-        throw waitlistError;
-      }
+        // 2. If we have empty slots, get waitlist projects
+        if (emptySlots.length > 0) {
+          console.log('Found empty slots, checking waitlist...');
+          
+          const { data: waitlist } = await supabase
+            .from('boost_waitlist')
+            .select('*')
+            .order('created_at', { ascending: true });
 
-      console.log('Raw boost slots:', slots);
-      console.log('Waitlist projects:', waitlist);
+          console.log('Waitlist projects available:', waitlist?.length || 0);
 
-      // Add active status based on end_time
-      const now = new Date();
-      const processedSlots = slots.map(slot => ({
-        ...slot,
-        active: slot.end_time ? new Date(slot.end_time) > now : false
-      })) as BoostSlot[];
+          if (waitlist?.length) {
+            for (let i = 0; i < Math.min(emptySlots.length, waitlist.length); i++) {
+              const slot = emptySlots[i];
+              const project = waitlist[i];
 
-      // Process expired slots and promote waitlist projects
-      const expiredSlots = processedSlots.filter(slot => !slot.active);
-      if (expiredSlots.length > 0 && waitlist.length > 0) {
-        console.log('Found expired slots:', expiredSlots);
-        console.log('Available waitlist projects:', waitlist);
+              console.log(`Promoting "${project.project_name}" to slot ${slot}`);
 
-        // Delete expired slots
-        for (const expiredSlot of expiredSlots) {
-          const { error: deleteError } = await supabase
-            .from('boost_slots')
-            .delete()
-            .eq('id', expiredSlot.id);
+              const startTime = new Date();
+              const endTime = new Date(startTime.getTime() + (project.contribution_amount * 20 * 60 * 60 * 1000));
 
-          if (deleteError) {
-            console.error('Error deleting expired slot:', deleteError);
-            continue;
-          }
+              // Create slot
+              const { error: insertError } = await supabase
+                .from('boost_slots')
+                .insert({
+                  slot_number: slot,
+                  project_name: project.project_name,
+                  project_logo: project.project_logo,
+                  project_link: project.project_link,
+                  telegram_link: project.telegram_link,
+                  chart_link: project.chart_link,
+                  start_time: startTime.toISOString(),
+                  end_time: endTime.toISOString(),
+                  initial_contribution: project.contribution_amount
+                });
 
-          // Promote next waitlist project
-          const nextProject = waitlist[0];
-          if (nextProject) {
-            const startTime = new Date();
-            const hoursToAdd = nextProject.contribution_amount * 20; // 0.05 SOL = 1 hour
-            const endTime = new Date(startTime.getTime() + (hoursToAdd * 60 * 60 * 1000));
+              if (insertError) {
+                console.error('Failed to create slot:', insertError);
+                continue;
+              }
 
-            const { error: promoteError } = await supabase
-              .from('boost_slots')
-              .insert({
-                slot_number: expiredSlot.slot_number,
-                project_name: nextProject.project_name,
-                project_logo: nextProject.project_logo,
-                start_time: startTime.toISOString(),
-                end_time: endTime.toISOString(),
-                project_id: nextProject.project_id
-              });
+              // Remove from waitlist
+              const { error: deleteError } = await supabase
+                .from('boost_waitlist')
+                .delete()
+                .eq('id', project.id);
 
-            if (promoteError) {
-              console.error('Error promoting waitlist project:', promoteError);
-              continue;
-            }
-
-            // Remove promoted project from waitlist
-            const { error: removeError } = await supabase
-              .from('boost_waitlist')
-              .delete()
-              .eq('id', nextProject.id);
-
-            if (removeError) {
-              console.error('Error removing promoted project from waitlist:', removeError);
+              if (deleteError) {
+                console.error('Failed to remove from waitlist:', deleteError);
+              } else {
+                console.log(`Successfully promoted ${project.project_name} to slot ${slot}`);
+              }
             }
           }
         }
-      }
 
-      // Return active slots and waitlist
-      return {
-        slots: processedSlots.filter(slot => slot.active),
-        waitlist: waitlist as WaitlistProject[]
-      };
-    }
+        // 3. Get final state and handle expired slots
+        const { data: finalSlots } = await supabase
+          .from('boost_slots')
+          .select('*')
+          .order('slot_number', { ascending: true });
+
+        const now = new Date();
+        const activeSlots = [];
+        const expiredSlots = [];
+
+        (finalSlots || []).forEach(slot => {
+          if (slot.end_time && new Date(slot.end_time) > now) {
+            activeSlots.push(slot);
+          } else {
+            expiredSlots.push(slot);
+            console.log(`Found expired slot ${slot.slot_number} (${slot.project_name})`);
+            
+            // Delete expired slot
+            supabase
+              .from('boost_slots')
+              .delete()
+              .eq('id', slot.id)
+              .then(() => console.log(`Deleted expired slot ${slot.slot_number}`))
+              .catch(err => console.error(`Failed to delete expired slot ${slot.slot_number}:`, err));
+          }
+        });
+
+        // 4. Get final waitlist
+        const { data: finalWaitlist } = await supabase
+          .from('boost_waitlist')
+          .select('*')
+          .order('created_at', { ascending: true });
+
+        console.log('=== FINAL STATE ===');
+        console.log('Active slots:', activeSlots.length);
+        console.log('Expired slots:', expiredSlots.length);
+        console.log('Waitlist length:', finalWaitlist?.length || 0);
+        console.log('=== BOOST SLOT CHECK END ===\n');
+
+        return {
+          slots: activeSlots,
+          waitlist: finalWaitlist || []
+        };
+      } catch (error) {
+        console.error('Error in useBoostSlots:', error);
+        throw error;
+      }
+    },
+    refetchInterval: 3000 // Check every 3 seconds
   });
 };

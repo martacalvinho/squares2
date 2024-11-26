@@ -55,3 +55,56 @@
   @apply bg-crypto-dark/95 backdrop-blur-lg border border-crypto-primary/20 
          shadow-xl shadow-crypto-primary/10;
 }
+
+/* Hero Section Styles */
+.hero-gradient {
+  background: radial-gradient(
+    circle at center,
+    rgba(147, 51, 234, 0.15) 0%,
+    rgba(79, 70, 229, 0.1) 25%,
+    transparent 50%
+  );
+}
+
+.hero-glow {
+  position: relative;
+}
+
+.hero-glow::before {
+  content: '';
+  position: absolute;
+  top: -100px;
+  left: -100px;
+  right: -100px;
+  bottom: -100px;
+  background: radial-gradient(
+    circle at center,
+    rgba(147, 51, 234, 0.1) 0%,
+    transparent 70%
+  );
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Wallet Button Styles */
+.wallet-button-wrapper .wallet-adapter-button {
+  height: 36px !important;
+  padding: 0 16px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  border-radius: 8px !important;
+  background: linear-gradient(to right, rgb(147, 51, 234), rgb(79, 70, 229)) !important;
+  border: none !important;
+  transition: all 0.3s !important;
+}
+
+.wallet-button-wrapper .wallet-adapter-button:hover {
+  opacity: 0.9 !important;
+  transform: translateY(-1px) !important;
+}
+
+.wallet-button-wrapper .wallet-adapter-button-start-icon {
+  margin-right: 8px !important;
+  width: 20px !important;
+  height: 20px !important;
+}

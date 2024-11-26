@@ -9,13 +9,24 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Info } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export const Rules = () => {
+interface RulesProps {
+  variant?: 'default' | 'header';
+}
+
+export const Rules = ({ variant = 'default' }: RulesProps) => {
   return (
     <Dialog>
       <DialogTrigger asChild>
         <Button 
-          className="bg-white text-gray-900 font-medium px-4 py-2.5 rounded-xl hover:bg-gray-100 transition-colors"
+          className={cn(
+            "font-medium transition-all duration-300",
+            variant === 'header'
+              ? "border border-crypto-primary/20 bg-transparent text-crypto-primary hover:bg-crypto-primary/5"
+              : "bg-white text-gray-900 hover:bg-gray-100"
+          )}
+          size={variant === 'header' ? 'sm' : 'default'}
           variant="ghost"
         >
           <Info className="w-4 h-4 mr-2" />

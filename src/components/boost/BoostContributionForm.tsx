@@ -29,8 +29,19 @@ export function BoostContributionForm({ slot, onSuccess, solPrice }: BoostContri
   const maxContribution = remainingHours * 5; // $5 per hour
 
   const handleContributionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = Math.min(Number(e.target.value), maxContribution);
-    setContribution(value);
+    const value = e.target.value;
+    const numValue = value === '' ? 0 : Number(value);
+    
+    if (numValue > maxContribution) {
+      toast({
+        title: 'Maximum Time Exceeded',
+        description: `Maximum additional contribution is $${maxContribution} (${remainingHours} hours)`,
+        variant: 'destructive',
+      });
+      setContribution(maxContribution);
+    } else {
+      setContribution(numValue);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,6 +60,24 @@ export function BoostContributionForm({ slot, onSuccess, solPrice }: BoostContri
       toast({
         title: 'Error',
         description: 'Invalid SOL price. Please try again later.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (contribution < 5) {
+      toast({
+        title: 'Error',
+        description: 'Minimum contribution is $5',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (contribution > maxContribution) {
+      toast({
+        title: 'Error',
+        description: `Maximum additional contribution is $${maxContribution} (${remainingHours} hours)`,
         variant: 'destructive',
       });
       return;
@@ -114,10 +143,10 @@ export function BoostContributionForm({ slot, onSuccess, solPrice }: BoostContri
         <Input
           id="contribution"
           type="number"
-          min={5}
+          min={0}
           max={maxContribution}
           step={1}
-          value={contribution}
+          value={contribution || ''}
           onChange={handleContributionChange}
           required
         />

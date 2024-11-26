@@ -41,7 +41,17 @@ export function BoostSubmissionForm({ onSuccess, solPrice, existingSlot }: Boost
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
     if (id === 'totalContributions') {
-      const numValue = Math.min(Number(value), maxContribution);
+      let numValue = value === '' ? 0 : Number(value);
+      
+      if (numValue > 240) {
+        toast({
+          title: 'Maximum Time Exceeded',
+          description: 'Maximum boost time is 48 hours ($240)',
+          variant: 'destructive',
+        });
+        numValue = 240;
+      }
+      
       setFormData(prev => ({ ...prev, [id]: numValue }));
     } else {
       setFormData(prev => ({ ...prev, [id]: value }));
@@ -64,6 +74,16 @@ export function BoostSubmissionForm({ onSuccess, solPrice, existingSlot }: Boost
       toast({
         title: 'Error',
         description: 'Invalid SOL price. Please try again later.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate contribution amount
+    if (formData.totalContributions < 5) {
+      toast({
+        title: 'Error',
+        description: 'Minimum contribution is $5',
         variant: 'destructive',
       });
       return;
@@ -193,10 +213,10 @@ export function BoostSubmissionForm({ onSuccess, solPrice, existingSlot }: Boost
         <Input
           id="totalContributions"
           type="number"
-          min={5}
+          min={0}
           max={maxContribution}
           step={1}
-          value={formData.totalContributions}
+          value={formData.totalContributions || ''}
           onChange={handleChange}
           required
         />

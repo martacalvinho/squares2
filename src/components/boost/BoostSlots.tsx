@@ -188,17 +188,18 @@ export function BoostSlots({ slots, onSlotClick, solPrice }: BoostSlotsProps) {
   useEffect(() => {
     const checkExpiredSlots = async () => {
       try {
-        const now = new Date().toISOString();
+        const now = new Date();
         
         // Get all current slots
         const currentSlots = slotsWithStats.map(slot => ({
+          id: slot.id,
           slot: slot.slot_number,
           project: slot.project_name,
           end: slot.end_time,
-          expired: new Date(slot.end_time) < new Date()
+          expired: new Date(slot.end_time) < now
         }));
 
-        console.log('All current slots:', currentSlots);
+        console.log('Checking slots for expiration:', currentSlots);
 
         // Find expired slots
         const expiredSlots = currentSlots.filter(slot => slot.expired);
@@ -210,172 +211,89 @@ export function BoostSlots({ slots, onSlotClick, solPrice }: BoostSlotsProps) {
 
         console.log('Found expired slots:', expiredSlots);
 
-        // Get slots that need to shift up
-        const { data: slotsToShift } = await supabase
-          .from('boost_slots')
-          .select('*')
-          .gt('slot_number', expiredSlots[0].slot)
-          .order('slot_number', { ascending: true });
+        // Delete expired slots
+        for (const expiredSlot of expiredSlots) {
+          console.log(`Deleting expired slot ${expiredSlot.slot} (${expiredSlot.project})`);
+          
+          const { error: deleteError } = await supabase
+            .from('boost_slots')
+            .delete()
+            .eq('id', expiredSlot.id);
 
-        if (!slotsToShift?.length) {
-          console.log('No slots to shift');
-        } else {
-          console.log('Slots to shift:', slotsToShift);
-        }
-
-        // Delete expired slot
-        const { error: deleteError } = await supabase
-          .from('boost_slots')
-          .delete()
-          .eq('slot_number', expiredSlots[0].slot);
-
-        if (deleteError) {
-          console.error('Error deleting expired slot:', deleteError);
-          return;
-        }
-
-        // Shift remaining slots up
-        if (slotsToShift?.length) {
-          for (const slot of slotsToShift) {
-            const { error: shiftError } = await supabase
-              .from('boost_slots')
-              .update({ slot_number: slot.slot_number - 1 })
-              .eq('id', slot.id);
-
-            if (shiftError) {
-              console.error('Error shifting slot:', shiftError);
-            }
+          if (deleteError) {
+            console.error('Error deleting expired slot:', deleteError);
+            continue;
           }
-        }
 
-        // Check waitlist for new project
-        const { data: waitlistProjects, error: waitlistError } = await supabase
-          .from('boost_waitlist')
-          .select('*')
-          .order('created_at', { ascending: true });
+          // Get waitlist projects
+          const { data: waitlistProjects, error: waitlistError } = await supabase
+            .from('boost_waitlist')
+            .select('*')
+            .order('created_at', { ascending: true })
+            .limit(1);
 
-        if (waitlistError) {
-          console.error('Error fetching waitlist:', waitlistError);
-          return;
-        }
+          if (waitlistError) {
+            console.error('Error fetching waitlist:', waitlistError);
+            continue;
+          }
 
-        if (!waitlistProjects?.length) {
-          console.log('No projects in waitlist');
-          return;
-        }
+          if (!waitlistProjects?.length) {
+            console.log('No projects in waitlist');
+            continue;
+          }
 
-        console.log('Found waitlist projects:', waitlistProjects.map(p => p.project_name));
+          const nextProject = waitlistProjects[0];
+          console.log('Promoting project from waitlist:', nextProject.project_name);
 
-        // Process each waitlist project
-        for (const nextProject of waitlistProjects) {
-          try {
-            console.log('Promoting project from waitlist:', {
-              project: nextProject.project_name,
-              contribution: nextProject.contribution_amount,
-              created_at: nextProject.created_at,
-              id: nextProject.id
+          // Add the new project to the slot
+          const startTime = new Date();
+          const hoursToAdd = nextProject.contribution_amount * 20; // 0.05 SOL = 1 hour
+          const endTime = new Date(startTime.getTime() + (hoursToAdd * 60 * 60 * 1000));
+
+          const { error: insertError } = await supabase
+            .from('boost_slots')
+            .insert({
+              slot_number: expiredSlot.slot,
+              project_name: nextProject.project_name,
+              project_logo: nextProject.project_logo,
+              project_link: nextProject.project_link,
+              telegram_link: nextProject.telegram_link,
+              chart_link: nextProject.chart_link,
+              start_time: startTime.toISOString(),
+              end_time: endTime.toISOString(),
+              initial_contribution: nextProject.contribution_amount
             });
 
-            const startTime = new Date();
-            const hoursToAdd = nextProject.contribution_amount * 20; // 0.05 SOL = 1 hour
-            const endTime = new Date(startTime.getTime() + (hoursToAdd * 60 * 60 * 1000));
-
-            // Calculate the last slot number (should be 5 or less)
-            const maxCurrentSlot = Math.min(
-              Math.max(...(slotsToShift?.map(s => s.slot_number - 1) || [0]), 0),
-              4
-            );
-            const lastSlotNumber = Math.min(maxCurrentSlot + 1, 5);
-
-            // Create new slot with waitlist project
-            const { data: newSlot, error: insertError } = await supabase
-              .from('boost_slots')
-              .insert({
-                slot_number: lastSlotNumber,
-                project_name: nextProject.project_name,
-                project_logo: nextProject.project_logo,
-                project_link: nextProject.project_link,
-                telegram_link: nextProject.telegram_link,
-                chart_link: nextProject.chart_link,
-                start_time: startTime.toISOString(),
-                end_time: endTime.toISOString(),
-                initial_contribution: nextProject.contribution_amount
-              })
-              .select()
-              .single();
-
-            if (insertError) {
-              console.error('Error creating new slot from waitlist:', insertError);
-              continue;
-            }
-
-            // Update boost stats
-            await updateBoostStats(nextProject.project_name, nextProject.contribution_amount);
-
-            // Remove from waitlist
-            const { error: removeError } = await supabase
-              .from('boost_waitlist')
-              .delete()
-              .eq('id', nextProject.id);
-
-            if (removeError) {
-              console.error('Error removing project from waitlist:', removeError);
-            } else {
-              console.log(`Successfully removed ${nextProject.project_name} from waitlist`);
-            }
-
-            // Add initial contribution
-            const { error: contributionError } = await supabase
-              .from('boost_contributions')
-              .insert({
-                slot_id: newSlot.id,
-                wallet_address: nextProject.wallet_address || 'WAITLIST',
-                amount: nextProject.contribution_amount,
-                transaction_signature: nextProject.transaction_signature || 'WAITLIST'
-              });
-
-            if (contributionError) {
-              console.error('Error adding contribution:', contributionError);
-              continue;
-            }
-
-            // Record wallet interaction
-            const { error: interactionError } = await supabase
-              .from('wallet_interactions')
-              .insert({
-                wallet_address: nextProject.wallet_address,
-                interaction_type: 'boost',
-                amount: nextProject.contribution_amount,
-                boost_slot_id: newSlot.id,
-                transaction_signature: nextProject.transaction_signature,
-                additional_data: {
-                  hours_added: hoursToAdd,
-                  project_name: nextProject.project_name,
-                  promoted_from_waitlist: true,
-                  slot_number: lastSlotNumber
-                }
-              });
-
-            if (interactionError) {
-              console.error('Error recording wallet interaction:', interactionError);
-            }
-
-            // Notify about the promotion
-            toast({
-              title: 'Projects Shifted',
-              description: `All projects have moved up one slot, and ${nextProject.project_name} has been promoted from the waitlist to slot ${lastSlotNumber}.`,
-            });
-          } catch (error) {
-            console.error('Error processing waitlist project:', error);
+          if (insertError) {
+            console.error('Error promoting waitlist project:', insertError);
+            continue;
           }
+
+          // Remove from waitlist
+          const { error: removeError } = await supabase
+            .from('boost_waitlist')
+            .delete()
+            .eq('id', nextProject.id);
+
+          if (removeError) {
+            console.error('Error removing project from waitlist:', removeError);
+          }
+
+          // Update boost stats
+          await updateBoostStats(nextProject.project_name, nextProject.contribution_amount);
         }
+
+        // Refresh the slots
+        await fetchContributionStats();
       } catch (error) {
         console.error('Error in checkExpiredSlots:', error);
       }
     };
 
-    // Set up interval to check for expired slots
-    const interval = setInterval(checkExpiredSlots, 10000); // Check every 10 seconds
+    // Check for expired slots every 10 seconds
+    const interval = setInterval(checkExpiredSlots, 10000);
+    checkExpiredSlots(); // Also check immediately
+
     return () => clearInterval(interval);
   }, [slotsWithStats]);
 
