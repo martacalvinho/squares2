@@ -49,10 +49,10 @@ export function BoostedProjects() {
     return (
       <div className="flex items-center gap-2 py-2 px-4 overflow-x-auto scrollbar-none">
         {Array(5).fill(0).map((_, i) => (
-          <div key={i} className="w-8 h-8 rounded-full bg-white/10 animate-pulse shrink-0" />
+          <div key={i} className="w-4 h-4 md:w-6 md:h-6 rounded-full bg-white/10 animate-pulse shrink-0" />
         ))}
-        <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center shrink-0">
-          <Plus className="w-4 h-4 text-crypto-primary/50" />
+        <div className="p-0.5 rounded-full bg-white/5 flex items-center justify-center shrink-0">
+          <Plus className="w-2 h-2 md:w-2.5 md:h-2.5 text-crypto-primary/30" />
         </div>
       </div>
     );
@@ -69,7 +69,7 @@ export function BoostedProjects() {
           <Dialog key={slot.id}>
             <DialogTrigger asChild>
               <button 
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-all shrink-0 border border-crypto-primary/20 hover:border-crypto-primary/50 focus:outline-none focus:ring-2 focus:ring-crypto-primary/50 relative group"
+                className="w-4 h-4 md:w-6 md:h-6 rounded-full bg-white/10 hover:bg-white/20 transition-all shrink-0 border border-crypto-primary/20 hover:border-crypto-primary/50 focus:outline-none focus:ring-2 focus:ring-crypto-primary/50 relative group"
               >
                 {slot.project?.logo ? (
                   <img
@@ -89,13 +89,11 @@ export function BoostedProjects() {
             <DialogContent className="sm:max-w-[425px] bg-crypto-dark border-crypto-primary/20">
               <DialogHeader>
                 <DialogTitle className="text-lg font-bold flex items-center gap-3">
-                  {slot.project?.logo && (
-                    <img
-                      src={slot.project.logo}
-                      alt={slot.project.name}
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  )}
+                  <img
+                    src={slot.project?.logo}
+                    alt={slot.project?.name}
+                    className="w-4 h-4 md:w-6 md:h-6 rounded-full object-cover"
+                  />
                   {slot.project?.name}
                 </DialogTitle>
               </DialogHeader>
@@ -152,7 +150,7 @@ export function BoostedProjects() {
         {waitlistProjects.map((project) => (
           <div
             key={project.id}
-            className="w-8 h-8 rounded-full bg-white/5 shrink-0 overflow-hidden opacity-30"
+            className="w-4 h-4 md:w-6 md:h-6 rounded-full bg-white/5 shrink-0 overflow-hidden opacity-30"
           >
             <img
               src={project.project_logo}
@@ -166,10 +164,10 @@ export function BoostedProjects() {
         <Dialog open={isBoostDialogOpen} onOpenChange={setIsBoostDialogOpen}>
           <DialogTrigger asChild>
             <button 
-              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-all shrink-0 border border-crypto-primary/20 hover:border-crypto-primary/50 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-crypto-primary/50"
+              className="p-0.5 rounded-full bg-white/5 hover:bg-white/10 transition-all shrink-0 border border-crypto-primary/10 hover:border-crypto-primary/20 flex items-center justify-center focus:outline-none focus:ring-1 focus:ring-crypto-primary/20"
               disabled={!connected}
             >
-              <Plus className="w-4 h-4 text-crypto-primary" />
+              <Plus className="w-2 h-2 md:w-2.5 md:h-2.5 text-crypto-primary/30 hover:text-crypto-primary/50" />
             </button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px] bg-crypto-dark border-crypto-primary/20">

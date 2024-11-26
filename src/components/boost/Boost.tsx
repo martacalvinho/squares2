@@ -373,12 +373,14 @@ export const Boost = () => {
   return (
     <div className="w-full max-w-7xl mx-auto px-4">
       <div className="flex items-center gap-2 mb-4">
-        <Rocket className="w-4 h-4 text-crypto-primary" />
-        <h2 className="hidden md:block text-xl font-semibold text-crypto-primary">Boosted</h2>
+        <div className="flex items-center gap-2">
+          <Rocket className="w-4 h-4 md:w-5 md:h-5 text-crypto-primary" />
+          <h2 className="text-lg font-semibold text-crypto-primary">Boosted</h2>
+        </div>
       </div>
       
       <div className="overflow-x-auto pb-4">
-        <div className="flex gap-3 min-w-max">
+        <div className="flex gap-3 min-w-max items-center">
           {/* Single Dialog for all slots */}
           <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
             <DialogContent>
@@ -430,10 +432,10 @@ export const Boost = () => {
           {/* Plus button */}
           <button
             onClick={() => handleOpenDialog(0)}
-            className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center border-2 border-dashed border-gray-300 hover:border-crypto-primary"
+            className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center border border-gray-300/20 hover:border-crypto-primary/30 bg-white/5 hover:bg-white/10 self-center"
             title={connected ? "Boost your project" : "Connect wallet to boost"}
           >
-            <Plus className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+            <Plus className="w-2.5 h-2.5 md:w-3 md:h-3 text-gray-400/50 hover:text-crypto-primary/50" />
           </button>
         </div>
       </div>

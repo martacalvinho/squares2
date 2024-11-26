@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
+import { Plus } from "lucide-react";
 
 // Cache for SOL price
 let lastPrice: number | null = null;
@@ -116,15 +117,18 @@ export const GridSpot = ({ spot, onClick }: SpotProps) => {
           "rounded-xl overflow-hidden",
           "group transition-all duration-300",
           "hover:scale-105 cursor-pointer",
-          "bg-crypto-primary/5"
+          "bg-crypto-primary/5",
+          "flex items-center justify-center"
         )}
       >
-        {spot.project?.logo && (
+        {spot.project?.logo ? (
           <img
             src={spot.project.logo}
             alt={spot.project.name}
             className="absolute inset-0 w-full h-full object-contain p-4"
           />
+        ) : (
+          <Plus className="w-8 h-8 text-gray-400/30 group-hover:text-crypto-primary/30 transition-colors duration-300" />
         )}
       </div>
 

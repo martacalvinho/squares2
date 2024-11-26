@@ -3,12 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { SpotModal } from './SpotModal';
 import { GridSpot } from './GridSpot';
-import { ActivityFeed } from './ActivityFeed';
 import { SearchFilters } from './SearchFilters';
-import { Comments } from './Comments';
 import { ShareButtons } from './ShareButtons';
 import { useAccount } from '@/integrations/wallet/use-account';
-import { MobileDropdown } from './MobileDropdown';
+import { ActivityFeed } from './ActivityFeed';
+import { Comments } from './Comments';
 
 export const Grid = () => {
   const [selectedSpot, setSelectedSpot] = useState<number | null>(null);
@@ -115,9 +114,6 @@ export const Grid = () => {
           />
         </div>
       
-        {/* Mobile Dropdown */}
-        <MobileDropdown />
-
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
           <div className="md:col-span-9">
             <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-4 md:gap-8 animate-fade-in">
@@ -142,6 +138,9 @@ export const Grid = () => {
                 <ShareButtons spotId={selectedSpot} />
               </div>
             )}
+            <div className="glass-effect rounded-xl p-4">
+              <Comments />
+            </div>
           </div>
         </div>
       </div>
