@@ -147,18 +147,12 @@ export const Boost = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-4">
+    <div>
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold text-crypto-primary">
-            Featured Projects
+            Boost Queue
           </h1>
-          <button
-            onClick={() => setIsDialogOpen(true)}
-            className="w-6 h-6 rounded-full bg-crypto-primary text-white flex items-center justify-center hover:bg-crypto-primary/90 transition-colors text-sm font-semibold"
-          >
-            +
-          </button>
           {waitlistProjects.length > 0 && (
             <div className="flex items-center gap-2 ml-4">
               <div className="flex -space-x-2">
