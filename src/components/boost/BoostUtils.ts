@@ -141,17 +141,24 @@ export async function submitBoostProject(
     const { data: newSlot, error: insertError } = await supabase
       .from('boost_slots')
       .insert({
-        ...values,
+        project_name: values.project_name,
+        project_logo: values.project_logo,
+        project_link: values.project_link,
+        telegram_link: values.telegram_link || null,
+        chart_link: values.chart_link || null,
         slot_number: availableSlot,
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
-        initial_contribution: values.initial_contribution,
+        initial_contribution: values.initial_contribution
       })
       .select()
       .single();
 
-    if (insertError) throw insertError;
-    if (!newSlot) throw new Error('Failed to create boost slot');  // Add this line
+    if (insertError) {
+      console.error('Insert error:', insertError);
+      throw new Error('Failed to create boost slot');
+    }
+    if (!newSlot) throw new Error('Failed to create boost slot');
 
     // Add initial contribution record
     const { error: contributionError } = await supabase
@@ -160,17 +167,34 @@ export async function submitBoostProject(
         slot_id: newSlot.id,
         wallet_address: wallet.publicKey!.toString(),
         amount: values.initial_contribution,
-        transaction_signature: signature,
+        transaction_signature: signature
       });
 
-    if (contributionError) throw contributionError;
+    if (contributionError) {
+      console.error('Contribution error:', contributionError);
+      throw new Error('Failed to record initial contribution');
+    }
 
     return { type: 'boosted', slot: availableSlot, signature };
   } else {
-    // Add to waitlist
-    const { error } = await supabase.from('boost_waitlist').insert(values);
+    // Add to waitlist with transaction details
+    const { error } = await supabase
+      .from('boost_waitlist')
+      .insert({
+        project_name: values.project_name,
+        project_logo: values.project_logo,
+        project_link: values.project_link,
+        telegram_link: values.telegram_link || null,
+        chart_link: values.chart_link || null,
+        contribution_amount: values.initial_contribution,
+        wallet_address: wallet.publicKey!.toString(),
+        transaction_signature: signature
+      });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Waitlist error:', error);
+      throw new Error('Failed to add project to waitlist');
+    }
 
     return { type: 'waitlist', signature };
   }
@@ -198,7 +222,7 @@ export async function assignWaitlistToAvailableSlot(
   // Get the first project from waitlist
   const projectToAssign = waitlistProjects[0];
   const { hours, minutes } = calculateBoostDuration(
-    projectToAssign.total_contributions
+    projectToAssign.contribution_amount
   );
 
   const startTime = new Date();
@@ -219,7 +243,7 @@ export async function assignWaitlistToAvailableSlot(
         chart_link: projectToAssign.chart_link,
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
-        initial_contribution: projectToAssign.total_contributions,
+        initial_contribution: projectToAssign.contribution_amount,
       });
 
     if (insertError) throw insertError;

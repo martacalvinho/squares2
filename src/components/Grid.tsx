@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { SpotModal } from './SpotModal';
 import { GridSpot } from './GridSpot';
-import { StatsBar } from './StatsBar';
 import { ActivityFeed } from './ActivityFeed';
 import { SearchFilters } from './SearchFilters';
 import { Comments } from './Comments';
@@ -11,33 +10,33 @@ import { ShareButtons } from './ShareButtons';
 import { Boost } from './boost/Boost';
 import { useAccount } from '@/integrations/wallet/use-account';
 import { MobileDropdown } from './MobileDropdown';
+import { getStartingPrice, getMinimumBid, getSolPrice } from '@/lib/price';
+
+interface Spot {
+  id: number;
+  currentPrice: number;
+  currentOwner: string | null;
+  project: {
+    name: string;
+    link: string;
+    logo: string;
+  } | null;
+  updatedAt: string;
+  minimumBid?: number;
+}
 
 export const Grid = () => {
   const [selectedSpot, setSelectedSpot] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priceRange, setPriceRange] = useState('all');
+  const [solPrice, setSolPrice] = useState<number>(100); // Default price
   const { isConnected } = useAccount();
 
   // Fetch spots from Supabase
   const { data: spots = [], isLoading } = useQuery({
     queryKey: ['spots'],
     queryFn: async () => {
-      console.log('Fetching spots...');
-      
-      // First check if we have any spots
-      const { count, error: countError } = await supabase
-        .from('spots')
-        .select('*', { count: 'exact', head: true });
-
-      console.log('Spots count:', count);
-
-      if (countError) {
-        console.error('Error checking spots count:', countError);
-        throw countError;
-      }
-
-      // Fetch all spots
       const { data, error } = await supabase
         .from('spots')
         .select('*')
@@ -48,23 +47,34 @@ export const Grid = () => {
         throw error;
       }
 
-      console.log('Fetched spots:', data);
-      
       // Map spots to our format
       return data.map(spot => ({
         id: spot.id,
-        currentPrice: spot.current_price || 0.005,
+        currentPrice: spot.current_bid || getStartingPrice(),
         currentOwner: spot.current_bidder,
         project: spot.project_name ? {
           name: spot.project_name,
           link: spot.project_link,
           logo: spot.project_logo
         } : null,
-        updatedAt: spot.updated_at
+        updatedAt: spot.updated_at,
+        minimumBid: spot.current_bid ? getMinimumBid(spot.current_bid) : getStartingPrice()
       }));
     },
     refetchInterval: 5000
   });
+
+  // Fetch SOL price
+  useEffect(() => {
+    const fetchPrice = async () => {
+      const price = await getSolPrice();
+      setSolPrice(price);
+    };
+    
+    fetchPrice();
+    const interval = setInterval(fetchPrice, 5 * 60 * 1000); // Update every 5 minutes
+    return () => clearInterval(interval);
+  }, []);
 
   // Filter spots based on search term and filters
   const filteredSpots = spots.filter(spot => {
@@ -75,8 +85,8 @@ export const Grid = () => {
 
     // Status filter
     const statusMatch = statusFilter === 'all' ||
-      (statusFilter === 'occupied' && spot.project) ||
-      (statusFilter === 'empty' && !spot.project);
+      (statusFilter === 'occupied' && spot.currentOwner) ||
+      (statusFilter === 'empty' && !spot.currentOwner);
 
     // Price range filter
     let priceMatch = true;
@@ -100,8 +110,6 @@ export const Grid = () => {
 
   return (
     <div className="w-full max-w-[1800px] mx-auto p-4">
-      <StatsBar stats={null} />
-      
       <div className="mt-4 mb-8">
         <Boost />
       </div>
@@ -131,6 +139,7 @@ export const Grid = () => {
                   key={spot.id}
                   spot={spot}
                   onClick={() => setSelectedSpot(spot.id)}
+                  solPrice={solPrice}
                 />
               ))}
             </div>
@@ -150,12 +159,14 @@ export const Grid = () => {
           </div>
         </div>
       </div>
-      {selectedSpot !== null && (
+
+      {selectedSpot !== null && spots[selectedSpot] && (
         <SpotModal
           spotId={selectedSpot}
           onClose={() => setSelectedSpot(null)}
           isConnected={isConnected}
-          currentPrice={spots[selectedSpot]?.currentPrice || 0.005}
+          currentPrice={spots[selectedSpot]?.currentPrice || getStartingPrice()}
+          minimumBid={spots[selectedSpot]?.minimumBid || getStartingPrice()}
         />
       )}
     </div>

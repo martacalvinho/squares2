@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import { ImagePlus } from "lucide-react";
 import { useAccount } from "@/integrations/wallet/use-account";
 import { useWallet } from '@solana/wallet-adapter-react';
 import { sendPayment } from '@/integrations/wallet/transaction';
+import { getSolPrice, getMinimumBid, formatSol, formatUsd } from '@/lib/price';
 
 interface SpotModalProps {
   spotId: number;
@@ -20,6 +21,7 @@ interface SpotModalProps {
 }
 
 export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotModalProps) => {
+  const { publicKey, signTransaction, connected, connecting, select } = useWallet();
   const [projectName, setProjectName] = useState("");
   const [projectLink, setProjectLink] = useState("");
   const [projectLogo, setProjectLogo] = useState("");
@@ -31,7 +33,6 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { publicKey, signTransaction, connected, connecting, select } = useWallet();
 
   // Ensure wallet is ready
   useEffect(() => {
@@ -91,9 +92,8 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
   useEffect(() => {
     const fetchSolPrice = async () => {
       try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-        const data = await response.json();
-        setSolPrice(data.solana.usd);
+        const price = await getSolPrice();
+        setSolPrice(price);
       } catch (error) {
         console.error('Error fetching SOL price:', error);
         toast({
@@ -114,7 +114,8 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
   };
 
   const minPurchaseAmount = getMinPurchaseAmount();
-  const purchaseAmount = Number(customPrice) || minPurchaseAmount;
+  const minimumBid = getMinimumBid(currentPrice, solPrice);
+  const purchaseAmount = Number(customPrice) || minimumBid;
 
   const handleSubmit = async () => {
     if (!connected || !publicKey || !signTransaction) {
@@ -138,6 +139,15 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
       toast({
         title: "Error",
         description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (purchaseAmount < minimumBid) {
+      toast({
+        title: "Invalid Bid",
+        description: `Minimum bid must be ${formatSol(minimumBid)} SOL ($${formatUsd(minimumBid * solPrice)})`,
         variant: "destructive",
       });
       return;
@@ -340,14 +350,14 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
             <Input
               type="number"
               step="0.001"
-              min={minPurchaseAmount}
+              min={minimumBid}
               value={customPrice}
               onChange={(e) => setCustomPrice(e.target.value)}
-              placeholder={`Min: ${minPurchaseAmount.toFixed(4)} SOL`}
+              placeholder={`Min: ${formatSol(minimumBid)} SOL`}
             />
             <div className="text-sm text-gray-400">
-              Minimum purchase: {minPurchaseAmount.toFixed(4)} SOL 
-              {solPrice && ` ($${(minPurchaseAmount * solPrice).toFixed(2)})`}
+              Minimum purchase: {formatSol(minimumBid)} SOL 
+              {solPrice && ` ($${formatUsd(minimumBid * solPrice).toFixed(2)})`}
             </div>
           </div>
           <Button

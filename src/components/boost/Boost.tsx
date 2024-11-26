@@ -8,13 +8,17 @@ import { BoostSubmissionForm } from '@/components/boost/BoostSubmissionForm';
 import type { Database } from '@/types/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
-type BoostSlot = Database['public']['Tables']['boost_slots']['Row'];
+type BoostSlot = Database['public']['Tables']['boost_slots']['Row'] & {
+  total_contributions?: number;
+  contributor_count?: number;
+};
 
 export const Boost = () => {
   const [slots, setSlots] = useState<BoostSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<BoostSlot | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [solPrice, setSolPrice] = useState(0);
+  const [waitlistProjects, setWaitlistProjects] = useState<any[]>([]);
   
   // Fetch SOL price
   useEffect(() => {
@@ -33,16 +37,59 @@ export const Boost = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch waitlist projects
+  useEffect(() => {
+    const fetchWaitlist = async () => {
+      const { data } = await supabase
+        .from('boost_waitlist')
+        .select('*')
+        .order('created_at', { ascending: true });
+      
+      if (data) setWaitlistProjects(data);
+    };
+
+    fetchWaitlist();
+
+    // Subscribe to waitlist changes
+    const channel = supabase
+      .channel('waitlist_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'boost_waitlist'
+        },
+        () => {
+          fetchWaitlist();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   // Subscribe to boost slots changes
   useEffect(() => {
     let channel: RealtimeChannel;
 
     const setupSubscription = async () => {
+      console.log('Fetching boost slots...');
       // Initial fetch
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('boost_slots')
         .select('*')
         .order('slot_number', { ascending: true });
+      
+      console.log('Fetched boost slots:', data);
+      console.log('Error if any:', error);
+      
+      if (error) {
+        console.error('Error fetching boost slots:', error);
+        return;
+      }
       
       if (data) setSlots(data);
 
@@ -56,21 +103,25 @@ export const Boost = () => {
             schema: 'public',
             table: 'boost_slots'
           },
-          (payload) => {
-            setSlots(current => {
-              if (payload.eventType === 'DELETE') {
-                return current.filter(slot => slot.id !== payload.old.id);
-              }
-              if (payload.eventType === 'INSERT') {
-                return [...current, payload.new as BoostSlot];
-              }
-              if (payload.eventType === 'UPDATE') {
-                return current.map(slot => 
-                  slot.id === payload.new.id ? (payload.new as BoostSlot) : slot
-                );
-              }
-              return current;
-            });
+          async (payload) => {
+            console.log('Boost slots changed:', payload);
+            // Fetch all slots
+            const { data: updatedSlots, error: updateError } = await supabase
+              .from('boost_slots')
+              .select('*')
+              .order('slot_number', { ascending: true });
+            
+            console.log('Updated boost slots:', updatedSlots);
+            console.log('Update error if any:', updateError);
+            
+            if (updateError) {
+              console.error('Error fetching updated boost slots:', updateError);
+              return;
+            }
+            
+            if (updatedSlots) {
+              setSlots(updatedSlots);
+            }
           }
         )
         .subscribe();
@@ -96,14 +147,49 @@ export const Boost = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-crypto-primary">
-          Featured Projects
-        </h1>
-        <p className="text-gray-400 mt-2">
-          Boost your project's visibility in our featured slots
-        </p>
+    <div className="container mx-auto px-4 py-4">
+      <div className="mb-4">
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold text-crypto-primary">
+            Featured Projects
+          </h1>
+          <button
+            onClick={() => setIsDialogOpen(true)}
+            className="w-6 h-6 rounded-full bg-crypto-primary text-white flex items-center justify-center hover:bg-crypto-primary/90 transition-colors text-sm font-semibold"
+          >
+            +
+          </button>
+          {waitlistProjects.length > 0 && (
+            <div className="flex items-center gap-2 ml-4">
+              <div className="flex -space-x-2">
+                {waitlistProjects.slice(0, 3).map((project, index) => (
+                  <div
+                    key={project.id}
+                    className="w-5 h-5 rounded-full border-2 border-white bg-crypto-dark overflow-hidden"
+                    style={{ zIndex: 3 - index }}
+                  >
+                    <img
+                      src={project.project_logo}
+                      alt={project.project_name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ))}
+                {waitlistProjects.length > 3 && (
+                  <div
+                    className="w-5 h-5 rounded-full border-2 border-white bg-crypto-dark flex items-center justify-center text-[10px] text-white"
+                    style={{ zIndex: 0 }}
+                  >
+                    +{waitlistProjects.length - 3}
+                  </div>
+                )}
+              </div>
+              <span className="text-xs text-gray-400">
+                {waitlistProjects.length} waiting
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       <BoostSlots
