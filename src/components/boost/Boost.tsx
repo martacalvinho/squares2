@@ -5,8 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { BoostSubmissionForm } from '@/components/boost/BoostSubmissionForm';
-import { formatTimeLeft } from './BoostUtils';
-import { RealtimeChannel } from '@supabase/supabase-js';
+import { formatTimeLeft, deleteExpiredSlot } from './BoostUtils';
 
 // Component types
 export type BoostSlot = {
@@ -176,15 +175,42 @@ export const Boost = () => {
     };
   }, []);
 
+  // Check for and handle expired slots
+  useEffect(() => {
+    const checkExpiredSlots = async () => {
+      const now = new Date().toISOString();
+      const { data: expiredSlots } = await supabase
+        .from('boost_slots')
+        .select('id')
+        .lt('end_time', now);
+
+      if (expiredSlots && expiredSlots.length > 0) {
+        for (const slot of expiredSlots) {
+          try {
+            await deleteExpiredSlot(slot.id);
+          } catch (error) {
+            console.error('Error handling expired slot:', error);
+          }
+        }
+      }
+    };
+
+    // Check immediately and then every minute
+    checkExpiredSlots();
+    const interval = setInterval(checkExpiredSlots, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <div className="w-full">
+    <div className="w-full max-w-7xl mx-auto px-4">
       <div className="flex items-center gap-2 mb-4">
-        <Rocket className="w-5 h-5 text-crypto-primary" />
+        <Rocket className="w-4 h-4 text-crypto-primary" />
         <h2 className="hidden md:block text-xl font-semibold text-crypto-primary">Boosted</h2>
       </div>
       
       <div className="overflow-x-auto pb-4">
-        <div className="flex gap-4 min-w-max">
+        <div className="flex gap-3 min-w-max">
           {Array.from({ length: 5 }).map((_, index) => {
             const slot = slots.find(s => s.slot_number === index + 1);
             const isAvailable = !slot;
@@ -197,7 +223,7 @@ export const Boost = () => {
                 <DialogTrigger asChild>
                   <button
                     onClick={() => setSelectedSlot(index + 1)}
-                    className={`relative w-20 h-20 rounded-full flex items-center justify-center border-2 
+                    className={`relative w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center border-2 
                       ${isAvailable ? 'border-dashed border-gray-300 hover:border-crypto-primary' : 'border-crypto-primary'}`}
                   >
                     {isAvailable ? (
@@ -277,12 +303,15 @@ export const Boost = () => {
           }}>
             <DialogTrigger asChild>
               <button
-                onClick={() => setSelectedSlot(null)}
-                className="w-20 h-20 rounded-full flex items-center justify-center border-2 border-dashed border-gray-300 hover:border-crypto-primary"
+                onClick={() => {
+                  setSelectedSlot(null);
+                  setIsDialogOpen(true);
+                }}
+                className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center border-2 border-dashed border-gray-300 hover:border-crypto-primary"
                 disabled={!connected}
                 title={connected ? "Boost your project" : "Connect wallet to boost"}
               >
-                <Plus className="w-6 h-6 text-gray-400" />
+                <Plus className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
               </button>
             </DialogTrigger>
             <DialogContent>

@@ -261,6 +261,30 @@ export async function assignWaitlistToAvailableSlot(
   }
 }
 
+export async function deleteExpiredSlot(slotId: string) {
+  // First delete all contributions for this slot
+  const { error: contributionsError } = await supabase
+    .from('boost_contributions')
+    .delete()
+    .eq('slot_id', slotId);
+
+  if (contributionsError) {
+    console.error('Error deleting contributions:', contributionsError);
+    throw new Error('Failed to delete contributions');
+  }
+
+  // Then delete the slot itself
+  const { error: slotError } = await supabase
+    .from('boost_slots')
+    .delete()
+    .eq('id', slotId);
+
+  if (slotError) {
+    console.error('Error deleting slot:', slotError);
+    throw new Error('Failed to delete slot');
+  }
+}
+
 export function formatTimeLeft(endTime: string): string {
   const end = new Date(endTime).getTime();
   const now = new Date().getTime();
