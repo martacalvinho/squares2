@@ -2,6 +2,12 @@ import { Users, TrendingUp, Award, MessageCircle, Rocket, Zap, Sword } from "luc
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface StatsBarProps {
   stats?: {
@@ -12,9 +18,10 @@ interface StatsBarProps {
     totalComments: number;
     boostedProjects: number;
   };
+  variant?: 'default' | 'mobile';
 }
 
-export const StatsBar = ({ stats }: StatsBarProps) => {
+export const StatsBar = ({ stats, variant = 'default' }: StatsBarProps) => {
   const { data: dbStats, isLoading } = useQuery({
     queryKey: ['stats'],
     queryFn: async () => {
@@ -82,27 +89,56 @@ export const StatsBar = ({ stats }: StatsBarProps) => {
       icon: Users,
       color: "from-green-500 to-emerald-500",
       tooltip: "Unique wallets that have interacted with the platform",
-      mobileHide: true
+      mobileHide: variant === 'default'
     },
     {
       label: "Comments",
       value: finalStats?.totalComments || 0,
       icon: MessageCircle,
       color: "from-blue-500 to-cyan-500",
-      mobileHide: true
+      mobileHide: variant === 'default'
     }
   ];
 
+  const visibleStats = variant === 'mobile' 
+    ? statItems
+    : statItems.filter(stat => !stat.mobileHide);
+
   return (
-    <div className={`flex md:flex-row flex-col gap-4 md:gap-8`}>
-      <div className="grid grid-cols-2 gap-4">
-        {statItems.map((stat, index) => (
-          <div key={index} className="flex flex-col items-center justify-center">
-            <span className="text-sm text-muted-foreground">{stat.label}</span>
-            <span className="font-bold">{stat.value}</span>
-          </div>
-        ))}
-      </div>
+    <div className={cn(
+      "w-full",
+      variant === 'mobile' ? "grid grid-cols-2 gap-4" : "flex flex-wrap gap-4"
+    )}>
+      {visibleStats.map((stat, index) => (
+        <TooltipProvider key={index}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors",
+                  variant === 'mobile' && "flex-col items-center text-center px-2"
+                )}
+              >
+                <div className={cn(
+                  "p-2 rounded-lg bg-gradient-to-r",
+                  stat.color
+                )}>
+                  <stat.icon className="w-4 h-4 text-white" />
+                </div>
+                <div className="min-w-[60px]">
+                  <p className="text-sm text-muted-foreground">{stat.label}</p>
+                  <p className="font-medium">{stat.value}</p>
+                </div>
+              </div>
+            </TooltipTrigger>
+            {stat.tooltip && (
+              <TooltipContent>
+                <p>{stat.tooltip}</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
+      ))}
     </div>
   );
 };

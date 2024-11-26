@@ -38,13 +38,13 @@ export const Header = () => {
                 <SheetHeader>
                   <SheetTitle>Menu</SheetTitle>
                 </SheetHeader>
-                <div className="py-4 space-y-4">
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-medium">Stats</h3>
-                    <StatsBar />
+                <div className="py-6 space-y-6">
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium text-muted-foreground">Stats</h3>
+                    <StatsBar variant="mobile" />
                   </div>
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-medium">Info</h3>
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium text-muted-foreground">Info</h3>
                     <Rules />
                   </div>
                 </div>

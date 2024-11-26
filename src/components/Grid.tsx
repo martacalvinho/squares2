@@ -115,6 +115,9 @@ export const Grid = () => {
       </div>
       
       <div className="space-y-6">
+        {/* Mobile Dropdown */}
+        <MobileDropdown />
+
         <div>
           <h2 className="text-xl font-semibold text-crypto-primary mb-2">Available Spots</h2>
           <p className="text-sm text-gray-400 mb-4">Claim one of the top 500 spots on Solana</p>
@@ -128,9 +131,6 @@ export const Grid = () => {
           />
         </div>
       
-        {/* Mobile Dropdown */}
-        <MobileDropdown />
-
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
           <div className="md:col-span-9">
             <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-4 md:gap-8 animate-fade-in">

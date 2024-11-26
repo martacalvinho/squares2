@@ -2,7 +2,7 @@ import { useBoostSlots } from '@/hooks/useBoostSlots';
 
 export const FeaturedBanner = () => {
   const { data: boostSlots } = useBoostSlots();
-  const featuredProjects = boostSlots?.filter(slot => slot.project);
+  const featuredProjects = boostSlots?.filter(slot => slot.project && slot.active);
 
   if (!featuredProjects?.length) return null;
 
@@ -17,13 +17,13 @@ export const FeaturedBanner = () => {
             {featuredProjects.map((slot) => (
               <div
                 key={slot.project_id}
-                className="flex items-center gap-2 bg-white/5 rounded-full px-3 py-1"
+                className="flex items-center gap-2 bg-white/5 rounded-full px-3 py-1 hover:bg-white/10 transition-colors"
               >
                 {slot.project?.logo && (
                   <img
                     src={slot.project.logo}
                     alt={slot.project.name}
-                    className="w-6 h-6 rounded-full object-cover"
+                    className="w-6 h-6 rounded-full object-cover bg-black/20"
                   />
                 )}
                 <span className="text-sm font-medium whitespace-nowrap">
