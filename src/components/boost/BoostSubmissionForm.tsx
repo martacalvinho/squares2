@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import * as React from 'react';
+import { useState, useRef } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useConnection } from '@solana/wallet-adapter-react';
 import { Input } from '@/components/ui/input';

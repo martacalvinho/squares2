@@ -1,205 +1,199 @@
+import * as React from 'react';
 import { useEffect, useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Plus, Rocket } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { BoostSubmissionForm } from '@/components/boost/BoostSubmissionForm';
-import { formatTimeLeft, deleteExpiredSlot } from './BoostUtils';
+import { formatTimeLeft } from './BoostUtils';
+import { RealtimeChannel } from '@supabase/supabase-js';
+import { Database } from '@/types/supabase';
 
 // Component types
-export type BoostSlot = {
-  id: string;
-  slot_number: number;
-  project_name: string;
-  project_logo: string;
-  project_link: string;
-  telegram_link: string | null;
-  chart_link: string | null;
-  start_time: string;
-  end_time: string;
-  initial_contribution: number;
-  created_at: string;
-  updated_at: string;
-  total_contributions?: number;
-  contributor_count?: number;
-  project?: {
-    name: string;
-    logo?: string;
-    description?: string;
-    website?: string;
-    twitter?: string;
-    telegram?: string;
-    chart?: string;
-  };
+type Tables = Database['public']['Tables'];
+type BoostSlotRow = Tables['boost_slots']['Row'];
+type WaitlistRow = Tables['boost_waitlist']['Row'];
+
+export type BoostSlot = BoostSlotRow & {
+  contribution_amount: number;
+  transaction_signature: string;
+  wallet_address: string;
 };
 
 export type WaitlistProject = {
-  id: string;
   project_name: string;
   project_logo: string;
   project_link: string;
-  telegram_link?: string;
-  chart_link?: string;
-  created_at: string;
+  telegram_link?: string | null;
+  chart_link?: string | null;
+  contribution_amount: number;
+  transaction_signature: string;
+  wallet_address: string;
 };
 
 export const Boost = () => {
   const [slots, setSlots] = useState<BoostSlot[]>([]);
+  const [waitlistProjects, setWaitlistProjects] = useState<WaitlistProject[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [solPrice, setSolPrice] = useState(0);
-  const [waitlistProjects, setWaitlistProjects] = useState<WaitlistProject[]>([]);
-  const [timeLeft, setTimeLeft] = useState<{ [key: string]: string }>({});
-  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
-  const wallet = useWallet();
   const { connected } = useWallet();
+  const { toast } = useToast();
+
+  // Function to handle opening the dialog
+  const handleOpenDialog = (slotNumber: number) => {
+    if (!connected) {
+      toast({
+        title: "Connect Wallet",
+        description: "Please connect your wallet to boost a project",
+        variant: "destructive"
+      });
+      return;
+    }
+    setIsDialogOpen(true);
+  };
+
+  // Function to handle closing the dialog
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
+  };
 
   // Update countdown timer every second
   useEffect(() => {
     if (!slots) return;
 
     const updateTimers = () => {
-      const newTimeLeft: { [key: string]: string } = {};
-      slots.forEach(slot => {
-        if (slot.end_time) {
-          newTimeLeft[slot.id] = formatTimeLeft(slot.end_time);
+      const now = new Date();
+      slots.forEach((slot) => {
+        const endTime = new Date(slot.end_time);
+        if (endTime > now) {
+          const timeLeft = formatTimeLeft(slot.end_time);
+          // Update UI with timeLeft if needed
         }
       });
-      setTimeLeft(newTimeLeft);
     };
 
-    updateTimers();
-    const interval = setInterval(updateTimers, 1000);
-    return () => clearInterval(interval);
+    const timer = setInterval(updateTimers, 1000);
+    return () => clearInterval(timer);
   }, [slots]);
 
-  // Fetch SOL price
+  // Subscribe to boost slots changes
   useEffect(() => {
-    const fetchSolPrice = async () => {
-      try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-        const data = await response.json();
-        setSolPrice(data.solana.usd);
-      } catch (error) {
-        console.error('Error fetching SOL price:', error);
-      }
-    };
+    const boostChannel = supabase
+      .channel('boost_slots_channel')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'boost_slots'
+        },
+        async () => {
+          // Refresh slots
+          const { data } = await supabase
+            .from('boost_slots')
+            .select('*')
+            .order('slot_number');
+          
+          if (data) {
+            const typedSlots = data.map((slot: BoostSlotRow) => ({
+              ...slot,
+              contribution_amount: slot.initial_contribution || 0,
+              transaction_signature: '',
+              wallet_address: ''
+            }));
+            setSlots(typedSlots);
+          }
+        }
+      )
+      .subscribe();
 
-    fetchSolPrice();
-    const interval = setInterval(fetchSolPrice, 60000); // Update every minute
-    return () => clearInterval(interval);
+    return () => {
+      supabase.removeChannel(boostChannel);
+    };
   }, []);
 
+  // Subscribe to waitlist changes
   useEffect(() => {
-    const fetchBoostSlots = async () => {
-      const { data: boostSlotsData } = await supabase
+    const waitlistChannel = supabase
+      .channel('waitlist_channel')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'boost_waitlist'
+        },
+        async () => {
+          // Refresh waitlist
+          const { data } = await supabase
+            .from('boost_waitlist')
+            .select('*')
+            .order('created_at');
+          
+          if (data) {
+            const typedWaitlist = data.map((project: WaitlistRow) => ({
+              project_name: project.project_name,
+              project_logo: project.project_logo,
+              project_link: project.project_link,
+              telegram_link: project.telegram_link,
+              chart_link: project.chart_link,
+              contribution_amount: project.contribution_amount || 0,
+              transaction_signature: project.transaction_signature || '',
+              wallet_address: project.wallet_address || ''
+            }));
+            setWaitlistProjects(typedWaitlist);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(waitlistChannel);
+    };
+  }, []);
+
+  // Initial fetch of boost slots and waitlist
+  useEffect(() => {
+    const fetchData = async () => {
+      // Fetch boost slots
+      const { data: slotsData } = await supabase
         .from('boost_slots')
         .select('*')
         .order('slot_number');
-
-      if (boostSlotsData) {
-        const typedBoostSlots = (boostSlotsData as any[]).map(row => ({
-          ...row,
-          project: {
-            name: row.project_name,
-            logo: row.project_logo,
-            website: row.project_link,
-            telegram: row.telegram_link || undefined,
-            chart: row.chart_link || undefined,
-          }
-        })) as BoostSlot[];
-        setSlots(typedBoostSlots);
+      
+      if (slotsData) {
+        const typedSlots = slotsData.map((slot: BoostSlotRow) => ({
+          ...slot,
+          contribution_amount: slot.initial_contribution || 0,
+          transaction_signature: '',
+          wallet_address: ''
+        }));
+        setSlots(typedSlots);
       }
-    };
 
-    fetchBoostSlots();
-  }, []);
-
-  useEffect(() => {
-    const fetchWaitlistProjects = async () => {
+      // Fetch waitlist
       const { data: waitlistData } = await supabase
         .from('boost_waitlist')
         .select('*')
         .order('created_at');
-
+      
       if (waitlistData) {
-        const typedWaitlist = (waitlistData as any[]).map(row => ({
-          ...row,
-          telegram_link: row.telegram_link || undefined,
-          chart_link: row.chart_link || undefined,
-        })) as WaitlistProject[];
+        const typedWaitlist = waitlistData.map((project: WaitlistRow) => ({
+          project_name: project.project_name,
+          project_logo: project.project_logo,
+          project_link: project.project_link,
+          telegram_link: project.telegram_link,
+          chart_link: project.chart_link,
+          contribution_amount: project.contribution_amount || 0,
+          transaction_signature: project.transaction_signature || '',
+          wallet_address: project.wallet_address || ''
+        }));
         setWaitlistProjects(typedWaitlist);
       }
     };
 
-    fetchWaitlistProjects();
-  }, []);
-
-  useEffect(() => {
-    let boostSlotsSubscription: RealtimeChannel;
-    
-    const setupSubscriptions = () => {
-      boostSlotsSubscription = supabase
-        .channel('boost_slots_changes')
-        .on('postgres_changes', 
-          { event: '*', schema: 'public', table: 'boost_slots' },
-          async () => {
-            const { data: boostSlotsData } = await supabase
-              .from('boost_slots')
-              .select('*')
-              .order('slot_number');
-
-            if (boostSlotsData) {
-              const typedBoostSlots = (boostSlotsData as any[]).map(row => ({
-                ...row,
-                project: {
-                  name: row.project_name,
-                  logo: row.project_logo,
-                  website: row.project_link,
-                  telegram: row.telegram_link || undefined,
-                  chart: row.chart_link || undefined,
-                }
-              })) as BoostSlot[];
-              setSlots(typedBoostSlots);
-            }
-          }
-        )
-        .subscribe();
-    };
-
-    setupSubscriptions();
-    return () => {
-      if (boostSlotsSubscription) {
-        supabase.removeChannel(boostSlotsSubscription);
-      }
-    };
-  }, []);
-
-  // Check for and handle expired slots
-  useEffect(() => {
-    const checkExpiredSlots = async () => {
-      const now = new Date().toISOString();
-      const { data: expiredSlots } = await supabase
-        .from('boost_slots')
-        .select('id')
-        .lt('end_time', now);
-
-      if (expiredSlots && expiredSlots.length > 0) {
-        for (const slot of expiredSlots) {
-          try {
-            await deleteExpiredSlot(slot.id);
-          } catch (error) {
-            console.error('Error handling expired slot:', error);
-          }
-        }
-      }
-    };
-
-    // Check immediately and then every minute
-    checkExpiredSlots();
-    const interval = setInterval(checkExpiredSlots, 60000);
-
-    return () => clearInterval(interval);
+    fetchData();
   }, []);
 
   return (
@@ -211,127 +205,66 @@ export const Boost = () => {
       
       <div className="overflow-x-auto pb-4">
         <div className="flex gap-3 min-w-max">
+          {/* Single Dialog for all slots */}
+          <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Boost Your Project</DialogTitle>
+              </DialogHeader>
+              <BoostSubmissionForm solPrice={solPrice} onSuccess={handleCloseDialog} />
+            </DialogContent>
+          </Dialog>
+
+          {/* Render all 5 slots */}
           {Array.from({ length: 5 }).map((_, index) => {
             const slot = slots.find(s => s.slot_number === index + 1);
             const isAvailable = !slot;
             
             return (
-              <Dialog key={index} open={isDialogOpen && selectedSlot === index + 1} onOpenChange={(open) => {
-                setIsDialogOpen(open);
-                if (!open) setSelectedSlot(null);
-              }}>
-                <DialogTrigger asChild>
+              <div key={index}>
+                {isAvailable ? (
                   <button
-                    onClick={() => setSelectedSlot(index + 1)}
-                    className={`relative w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center border-2 
-                      ${isAvailable ? 'border-dashed border-gray-300 hover:border-crypto-primary' : 'border-crypto-primary'}`}
+                    onClick={() => handleOpenDialog(index + 1)}
+                    className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center border-2 border-dashed border-gray-300 hover:border-crypto-primary"
+                    title={connected ? "Boost your project" : "Connect wallet to boost"}
                   >
-                    {isAvailable ? (
-                      <span className="text-gray-400">#{index + 1}</span>
-                    ) : (
-                      <img
-                        src={slot.project_logo}
-                        alt={slot.project_name}
-                        className="w-full h-full rounded-full object-cover"
-                      />
-                    )}
+                    <span className="text-sm text-gray-400">#{index + 1}</span>
                   </button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>
-                      {isAvailable ? 'Boost Your Project' : slot?.project_name}
-                    </DialogTitle>
-                  </DialogHeader>
-                  {isAvailable ? (
-                    <BoostSubmissionForm solPrice={solPrice} onSuccess={() => setIsDialogOpen(false)} />
-                  ) : (
-                    <div className="space-y-4">
-                      {slot.project?.description && (
-                        <p className="text-sm text-gray-400">{slot.project.description}</p>
-                      )}
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="bg-white/5 rounded p-2">
-                          <div className="text-crypto-primary">Time Left</div>
-                          <div>{timeLeft[slot.id]}</div>
-                        </div>
-                        <div className="bg-white/5 rounded p-2">
-                          <div className="text-crypto-primary">Contributors</div>
-                          <div>{slot.contributor_count || 0}</div>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {slot.project?.website && (
-                          <Button variant="outline" size="sm" asChild>
-                            <a href={slot.project.website} target="_blank" rel="noopener noreferrer">
-                              Website
-                            </a>
-                          </Button>
-                        )}
-                        {slot.project?.twitter && (
-                          <Button variant="outline" size="sm" asChild>
-                            <a href={slot.project.twitter} target="_blank" rel="noopener noreferrer">
-                              Twitter
-                            </a>
-                          </Button>
-                        )}
-                        {slot.project?.telegram && (
-                          <Button variant="outline" size="sm" asChild>
-                            <a href={slot.project.telegram} target="_blank" rel="noopener noreferrer">
-                              Telegram
-                            </a>
-                          </Button>
-                        )}
-                        {slot.project?.chart && (
-                          <Button variant="outline" size="sm" asChild>
-                            <a href={slot.project.chart} target="_blank" rel="noopener noreferrer">
-                              Chart
-                            </a>
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </DialogContent>
-              </Dialog>
+                ) : (
+                  <button
+                    onClick={() => handleOpenDialog(index + 1)}
+                    className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center border-2 border-crypto-primary"
+                    title={slot.project_name}
+                  >
+                    <img
+                      src={slot.project_logo}
+                      alt={slot.project_name}
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  </button>
+                )}
+              </div>
             );
           })}
 
-          <Dialog open={isDialogOpen && selectedSlot === null} onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) setSelectedSlot(null);
-          }}>
-            <DialogTrigger asChild>
-              <button
-                onClick={() => {
-                  setSelectedSlot(null);
-                  setIsDialogOpen(true);
-                }}
-                className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center border-2 border-dashed border-gray-300 hover:border-crypto-primary"
-                disabled={!connected}
-                title={connected ? "Boost your project" : "Connect wallet to boost"}
-              >
-                <Plus className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
-              </button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Boost Your Project</DialogTitle>
-              </DialogHeader>
-              <BoostSubmissionForm solPrice={solPrice} onSuccess={() => setIsDialogOpen(false)} />
-            </DialogContent>
-          </Dialog>
+          {/* Plus button */}
+          <button
+            onClick={() => handleOpenDialog(0)}
+            className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center border-2 border-dashed border-gray-300 hover:border-crypto-primary"
+            title={connected ? "Boost your project" : "Connect wallet to boost"}
+          >
+            <Plus className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+          </button>
         </div>
       </div>
 
-      {/* Waitlist indicator */}
       {waitlistProjects.length > 0 && (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mt-2">
           <span className="text-sm text-gray-400">{waitlistProjects.length} projects waiting</span>
           <div className="flex -space-x-2">
-            {waitlistProjects.slice(0, 3).map((project) => (
+            {waitlistProjects.slice(0, 3).map((project, idx) => (
               <div
-                key={project.id}
+                key={idx}
                 className="w-6 h-6 rounded-full bg-white/5 shrink-0 overflow-hidden opacity-30 ring-1 ring-crypto-dark"
               >
                 <img

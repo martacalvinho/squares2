@@ -101,44 +101,76 @@ export async function submitBoostProject(
   connection: Connection,
   solPrice: number
 ) {
-  // Validate minimum contribution
-  if (values.initial_contribution < MIN_CONTRIBUTION) {
-    throw new Error(`Minimum contribution is $${MIN_CONTRIBUTION}`);
-  }
-
-  // Process payment first
-  const signature = await processBoostPayment(
-    wallet,
-    connection,
-    values.initial_contribution,
-    solPrice
-  );
-
-  // Calculate boost duration
-  const { hours, minutes } = calculateBoostDuration(values.initial_contribution);
-  const startTime = new Date();
-  const endTime = new Date(startTime.getTime() + (hours * 60 + minutes) * 60 * 1000);
-
-  // Check for available slots
-  const { data: slots } = await supabase
-    .from('boost_slots')
-    .select('slot_number')
-    .order('slot_number', { ascending: true });
-
-  const usedSlots = new Set(slots?.map((s) => s.slot_number) || []);
-  let availableSlot = null;
-
-  // Find first available slot (1-5)
-  for (let i = 1; i <= 5; i++) {
-    if (!usedSlots.has(i)) {
-      availableSlot = i;
-      break;
+  try {
+    // Validate minimum contribution
+    if (values.initial_contribution < MIN_CONTRIBUTION) {
+      throw new Error(`Minimum contribution is $${MIN_CONTRIBUTION}`);
     }
-  }
 
-  if (availableSlot) {
+    if (!wallet.publicKey) {
+      throw new Error('Wallet not connected');
+    }
+
+    // Process payment first
+    const signature = await processBoostPayment(
+      wallet,
+      connection,
+      values.initial_contribution,
+      solPrice
+    );
+
+    // Calculate boost duration
+    const { hours, minutes } = calculateBoostDuration(values.initial_contribution);
+    const startTime = new Date();
+    const endTime = new Date(startTime.getTime() + (hours * 60 + minutes) * 60 * 1000);
+
+    // Check for available slots
+    const { data: slots, error: slotsError } = await supabase
+      .from('boost_slots')
+      .select('slot_number')
+      .order('slot_number', { ascending: true });
+
+    if (slotsError) {
+      console.error('Error fetching slots:', slotsError);
+      throw new Error('Failed to check available slots');
+    }
+
+    const usedSlots = new Set(slots?.map((s) => s.slot_number) || []);
+    let availableSlot = null;
+
+    // Find first available slot (1-5)
+    for (let i = 1; i <= 5; i++) {
+      if (!usedSlots.has(i)) {
+        availableSlot = i;
+        break;
+      }
+    }
+
+    if (!availableSlot) {
+      // Add to waitlist if no slots available
+      const { error: waitlistError } = await supabase
+        .from('boost_waitlist')
+        .insert({
+          project_name: values.project_name,
+          project_logo: values.project_logo,
+          project_link: values.project_link,
+          telegram_link: values.telegram_link || null,
+          chart_link: values.chart_link || null,
+          contribution_amount: values.initial_contribution,
+          transaction_signature: signature,
+          wallet_address: wallet.publicKey.toString()
+        });
+
+      if (waitlistError) {
+        console.error('Error adding to waitlist:', waitlistError);
+        throw new Error('Failed to add to waitlist');
+      }
+
+      return { type: 'waitlist', signature };
+    }
+
     // Add to boost slots
-    const { data: newSlot, error: insertError } = await supabase
+    const { error: insertError } = await supabase
       .from('boost_slots')
       .insert({
         project_name: values.project_name,
@@ -149,54 +181,37 @@ export async function submitBoostProject(
         slot_number: availableSlot,
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
-        initial_contribution: values.initial_contribution
-      })
-      .select()
-      .single();
+        contribution_amount: values.initial_contribution,
+        transaction_signature: signature,
+        wallet_address: wallet.publicKey.toString()
+      });
 
     if (insertError) {
-      console.error('Insert error:', insertError);
+      console.error('Error inserting boost slot:', insertError);
       throw new Error('Failed to create boost slot');
     }
-    if (!newSlot) throw new Error('Failed to create boost slot');
 
-    // Add initial contribution record
+    // Add contribution record
     const { error: contributionError } = await supabase
       .from('boost_contributions')
       .insert({
-        slot_id: newSlot.id,
-        wallet_address: wallet.publicKey!.toString(),
+        slot_number: availableSlot,
+        wallet_address: wallet.publicKey.toString(),
         amount: values.initial_contribution,
         transaction_signature: signature
       });
 
     if (contributionError) {
-      console.error('Contribution error:', contributionError);
-      throw new Error('Failed to record initial contribution');
+      console.error('Error recording contribution:', contributionError);
+      // Don't throw here as the slot is already created
+      // Instead, we'll log it and let the user proceed
+      console.warn('Failed to record contribution, but slot was created');
     }
 
     return { type: 'boosted', slot: availableSlot, signature };
-  } else {
-    // Add to waitlist with transaction details
-    const { error } = await supabase
-      .from('boost_waitlist')
-      .insert({
-        project_name: values.project_name,
-        project_logo: values.project_logo,
-        project_link: values.project_link,
-        telegram_link: values.telegram_link || null,
-        chart_link: values.chart_link || null,
-        contribution_amount: values.initial_contribution,
-        wallet_address: wallet.publicKey!.toString(),
-        transaction_signature: signature
-      });
-
-    if (error) {
-      console.error('Waitlist error:', error);
-      throw new Error('Failed to add project to waitlist');
-    }
-
-    return { type: 'waitlist', signature };
+  } catch (error) {
+    console.error('Error in submitBoostProject:', error);
+    throw error;
   }
 }
 
@@ -243,7 +258,7 @@ export async function assignWaitlistToAvailableSlot(
         chart_link: projectToAssign.chart_link,
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
-        initial_contribution: projectToAssign.contribution_amount,
+        contribution_amount: projectToAssign.contribution_amount,
       });
 
     if (insertError) throw insertError;
