@@ -357,7 +357,7 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
             />
             <div className="text-sm text-gray-400">
               Minimum purchase: {formatSol(minimumBid)} SOL 
-              {solPrice && ` ($${formatUsd(minimumBid * solPrice).toFixed(2)})`}
+              {solPrice && ` ($${formatUsd(minimumBid, solPrice)})`}
             </div>
           </div>
           <Button

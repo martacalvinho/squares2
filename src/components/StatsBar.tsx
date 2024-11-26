@@ -89,14 +89,14 @@ export const StatsBar = ({ stats, variant = 'default' }: StatsBarProps) => {
       icon: Users,
       color: "from-green-500 to-emerald-500",
       tooltip: "Unique wallets that have interacted with the platform",
-      mobileHide: variant === 'default'
+      mobileHide: false
     },
     {
       label: "Comments",
       value: finalStats?.totalComments || 0,
       icon: MessageCircle,
       color: "from-blue-500 to-cyan-500",
-      mobileHide: variant === 'default'
+      mobileHide: false
     }
   ];
 

@@ -3,12 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { SpotModal } from './SpotModal';
 import { GridSpot } from './GridSpot';
-import { StatsBar } from './StatsBar';
 import { ActivityFeed } from './ActivityFeed';
 import { SearchFilters } from './SearchFilters';
 import { Comments } from './Comments';
 import { ShareButtons } from './ShareButtons';
-import { Boost } from './boost/Boost';
 import { useAccount } from '@/integrations/wallet/use-account';
 import { MobileDropdown } from './MobileDropdown';
 
@@ -51,17 +49,20 @@ export const Grid = () => {
       console.log('Fetched spots:', data);
       
       // Map spots to our format
-      return data.map(spot => ({
-        id: spot.id,
-        currentPrice: spot.current_price || 0.005,
-        currentOwner: spot.current_bidder,
-        project: spot.project_name ? {
-          name: spot.project_name,
-          link: spot.project_link,
-          logo: spot.project_logo
-        } : null,
-        updatedAt: spot.updated_at
-      }));
+      return data.map(spot => {
+        const startingPrice = 0.005; // $1 equivalent in SOL
+        return {
+          id: spot.id,
+          currentPrice: spot.project_name ? (spot.current_bid || startingPrice) : startingPrice,
+          currentOwner: spot.current_bidder,
+          project: spot.project_name ? {
+            name: spot.project_name,
+            link: spot.project_link,
+            logo: spot.project_logo
+          } : null,
+          updatedAt: spot.updated_at
+        };
+      });
     },
     refetchInterval: 5000
   });
@@ -99,13 +100,7 @@ export const Grid = () => {
   }
 
   return (
-    <div className="w-full max-w-[1800px] mx-auto p-4">
-      <StatsBar stats={null} />
-      
-      <div className="mt-4 mb-8">
-        <Boost />
-      </div>
-      
+    <div className="w-full max-w-[1800px] mx-auto p-4">      
       <div className="space-y-6">
         <div>
           <h2 className="text-xl font-semibold text-crypto-primary mb-2">Available Spots</h2>

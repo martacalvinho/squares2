@@ -101,6 +101,11 @@ export const GridSpot = ({ spot, onClick }: SpotProps) => {
     });
   };
 
+  const formatSolPrice = (price: number | undefined | null) => {
+    if (typeof price !== 'number') return '0.0000';
+    return price.toFixed(4);
+  };
+
   return (
     <div className="flex flex-col space-y-3">
       {/* Logo Square */}
@@ -145,7 +150,7 @@ export const GridSpot = ({ spot, onClick }: SpotProps) => {
               "text-sm",
               "text-crypto-primary"
             )}>
-              {spot.currentPrice.toFixed(4)} SOL
+              {formatSolPrice(spot.currentPrice)} SOL
               {usdValue && (
                 <span className="text-crypto-primary/70">
                   {" "}(${formatPrice(usdValue)})
@@ -166,7 +171,7 @@ export const GridSpot = ({ spot, onClick }: SpotProps) => {
               {`${spot.id + 1}. Available`}
             </div>
             <div className="text-sm text-crypto-primary">
-              {spot.currentPrice.toFixed(4)} SOL
+              {formatSolPrice(spot.currentPrice)} SOL
               {usdValue && (
                 <span className="text-crypto-primary/70">
                   {" "}(${formatPrice(usdValue)})
