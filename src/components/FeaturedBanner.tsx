@@ -1,7 +1,8 @@
-import { useFeaturedProjects } from '@/hooks/useFeaturedProjects';
+import { useBoostSlots } from '@/hooks/useBoostSlots';
 
 export const FeaturedBanner = () => {
-  const { data: featuredProjects } = useFeaturedProjects();
+  const { data: boostSlots } = useBoostSlots();
+  const featuredProjects = boostSlots?.filter(slot => slot.project);
 
   if (!featuredProjects?.length) return null;
 
@@ -13,20 +14,20 @@ export const FeaturedBanner = () => {
             Featured:
           </span>
           <div className="flex gap-2">
-            {featuredProjects.map((project) => (
+            {featuredProjects.map((slot) => (
               <div
-                key={project.id}
+                key={slot.project_id}
                 className="flex items-center gap-2 bg-white/5 rounded-full px-3 py-1"
               >
-                {project.logo && (
+                {slot.project?.logo && (
                   <img
-                    src={project.logo}
-                    alt={project.name}
+                    src={slot.project.logo}
+                    alt={slot.project.name}
                     className="w-6 h-6 rounded-full object-cover"
                   />
                 )}
                 <span className="text-sm font-medium whitespace-nowrap">
-                  {project.name}
+                  {slot.project?.name}
                 </span>
               </div>
             ))}
