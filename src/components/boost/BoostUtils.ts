@@ -260,3 +260,21 @@ export async function assignWaitlistToAvailableSlot(
     throw error;
   }
 }
+
+export function formatTimeLeft(endTime: string): string {
+  const end = new Date(endTime).getTime();
+  const now = new Date().getTime();
+  const timeLeft = end - now;
+
+  if (timeLeft <= 0) {
+    return 'Expired';
+  }
+
+  const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+  const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+}
