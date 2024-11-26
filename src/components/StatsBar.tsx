@@ -1,7 +1,7 @@
 import { Users, TrendingUp, Award, MessageCircle, Rocket, Zap, Sword } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import cn from "classnames";
+import { cn } from "@/lib/utils";
 
 interface StatsBarProps {
   stats?: {
