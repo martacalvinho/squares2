@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { SpotModal } from './SpotModal';
@@ -7,14 +7,27 @@ import { SearchFilters } from './SearchFilters';
 import { ShareButtons } from './ShareButtons';
 import { useAccount } from '@/integrations/wallet/use-account';
 import { ActivityFeed } from './ActivityFeed';
-import { Comments } from './Comments';
 
 export const Grid = () => {
   const [selectedSpot, setSelectedSpot] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priceRange, setPriceRange] = useState('all');
+  const [isDesktop, setIsDesktop] = useState(false);
   const { isConnected } = useAccount();
+
+  useEffect(() => {
+    const checkIfDesktop = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+
+    checkIfDesktop();
+    window.addEventListener('resize', checkIfDesktop);
+
+    return () => {
+      window.removeEventListener('resize', checkIfDesktop);
+    };
+  }, []);
 
   // Fetch spots from Supabase
   const { data: spots = [], isLoading } = useQuery({
@@ -126,7 +139,7 @@ export const Grid = () => {
               ))}
             </div>
           </div>
-          <div className="hidden md:block md:col-span-3 space-y-8">
+          <div className="md:col-span-3 space-y-8">
             <div className="glass-effect rounded-xl p-4">
               <ActivityFeed />
             </div>
@@ -138,9 +151,6 @@ export const Grid = () => {
                 <ShareButtons spotId={selectedSpot} />
               </div>
             )}
-            <div className="glass-effect rounded-xl p-4">
-              <Comments />
-            </div>
           </div>
         </div>
       </div>

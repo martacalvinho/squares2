@@ -6,14 +6,18 @@ import { useAccount } from "@/integrations/wallet/use-account";
 import { CommentForm } from "./comments/CommentForm";
 import { CommentList } from "./comments/CommentList";
 
-export const Comments = () => {
+interface CommentsProps {
+  isMobile?: boolean;
+}
+
+export const Comments = ({ isMobile = false }: CommentsProps) => {
   const queryClient = useQueryClient();
   const { address, isConnected } = useAccount();
   
   console.log('Comments component wallet state:', { address, isConnected });
 
   const { data: comments = [], isLoading } = useQuery({
-    queryKey: ['comments'],
+    queryKey: ['comments', isMobile ? 'mobile' : 'desktop'],
     queryFn: async () => {
       if (!isConnected || !address) {
         console.log('Not fetching comments - not connected');
@@ -87,7 +91,7 @@ export const Comments = () => {
       return data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['comments'] });
+      queryClient.invalidateQueries({ queryKey: ['comments', isMobile ? 'mobile' : 'desktop'] });
       toast({
         title: "Comment posted!",
         description: "Your comment has been added to the discussion.",
@@ -105,7 +109,7 @@ export const Comments = () => {
 
   if (!isConnected || !address) {
     return (
-      <div className="w-full h-full bg-crypto-dark/50 rounded-xl p-4 backdrop-blur-sm mt-8">
+      <div className="w-full h-full bg-crypto-dark/50 rounded-xl p-4 backdrop-blur-sm">
         <div className="flex items-center gap-2 mb-4">
           <MessageCircle className="w-5 h-5 text-crypto-primary" />
           <h3 className="text-lg font-semibold text-crypto-primary">Comments</h3>
@@ -116,7 +120,7 @@ export const Comments = () => {
   }
 
   return (
-    <div className="w-full h-full bg-crypto-dark/50 rounded-xl p-4 backdrop-blur-sm mt-8">
+    <div className="w-full h-full bg-crypto-dark/50 rounded-xl p-4 backdrop-blur-sm">
       <div className="flex items-center gap-2 mb-4">
         <MessageCircle className="w-5 h-5 text-crypto-primary" />
         <h3 className="text-lg font-semibold text-crypto-primary">Comments</h3>

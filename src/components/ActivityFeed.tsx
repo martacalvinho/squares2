@@ -176,11 +176,11 @@ export const ActivityFeed = () => {
         <TrendingUp className="w-5 h-5 text-crypto-primary" />
         <h3 className="text-lg font-semibold text-crypto-primary">Activity Feed</h3>
       </div>
-      
-      <ScrollArea className="h-[200px] pr-4 mb-8">
+
+      <ScrollArea className="h-[400px] pr-4">
         <div className="space-y-4">
-          {/* Activities */}
-          {activities?.map((activity) => (
+          {/* Activity Items */}
+          {activities.map((activity) => (
             <div
               key={`activity-${activity.id}`}
               className={cn(
