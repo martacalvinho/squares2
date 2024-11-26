@@ -1,5 +1,4 @@
 import { useFeaturedProjects } from '@/hooks/useFeaturedProjects';
-import { cn } from '@/lib/utils';
 
 export const FeaturedBanner = () => {
   const { data: featuredProjects } = useFeaturedProjects();
@@ -23,7 +22,7 @@ export const FeaturedBanner = () => {
                   <img
                     src={project.logo}
                     alt={project.name}
-                    className="w-6 h-6 rounded-full"
+                    className="w-6 h-6 rounded-full object-cover"
                   />
                 )}
                 <span className="text-sm font-medium whitespace-nowrap">
