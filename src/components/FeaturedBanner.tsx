@@ -11,12 +11,48 @@ import { Button } from '@/components/ui/button';
 import { useWallet } from '@solana/wallet-adapter-react';
 
 export const FeaturedBanner = () => {
-  const { data: boostSlots } = useBoostSlots();
+  const { data: boostSlots, isLoading, error } = useBoostSlots();
   const { connected } = useWallet();
   const featuredProjects = boostSlots?.filter(slot => slot.project && slot.active);
 
-  if (!featuredProjects?.length) return null;
+  console.log('FeaturedBanner render:', {
+    boostSlots,
+    isLoading,
+    error,
+    featuredProjects,
+    connected
+  });
 
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="sticky top-[52px] z-40 w-full border-b border-crypto-primary/10 bg-crypto-dark/95 backdrop-blur-md">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center gap-3 py-1.5">
+            <div className="flex items-center gap-1.5 text-crypto-primary shrink-0">
+              <Rocket className="w-4 h-4" />
+              <span className="text-xs font-medium whitespace-nowrap hidden sm:inline">
+                Boosted
+              </span>
+            </div>
+            <div className="animate-pulse flex gap-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="w-7 h-7 rounded-full bg-white/10" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    console.error('FeaturedBanner error:', error);
+    return null;
+  }
+
+  // Always show the banner with the + button, even if there are no featured projects
   return (
     <div className="sticky top-[52px] z-40 w-full border-b border-crypto-primary/10 bg-crypto-dark/95 backdrop-blur-md">
       <div className="container mx-auto px-4">
@@ -28,7 +64,7 @@ export const FeaturedBanner = () => {
             </span>
           </div>
           <div className="flex gap-2">
-            {featuredProjects.map((slot) => (
+            {featuredProjects?.map((slot) => (
               <Dialog key={slot.project?.id}>
                 <DialogTrigger asChild>
                   <button className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 transition-all shrink-0 border border-crypto-primary/20 hover:border-crypto-primary/50 focus:outline-none focus:ring-2 focus:ring-crypto-primary/50">
