@@ -9,15 +9,15 @@ import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { BoostSubmissionForm } from '@/components/boost/BoostSubmissionForm';
-import { useBoostSlots } from '@/hooks/useBoostSlots';
 import { supabase } from '@/lib/supabase';
-import { createClient } from '@supabase/supabase-js';
+import { SpotModal } from '@/components/SpotModal';
 
 const Index = () => {
   const { connected } = useWallet();
   const { toast } = useToast();
   const [isBoostDialogOpen, setIsBoostDialogOpen] = useState(false);
-  const { data: boostData } = useBoostSlots();
+  const [selectedSpotId, setSelectedSpotId] = useState<number | null>(null);
+  const [isSpotModalOpen, setIsSpotModalOpen] = useState(false);
 
   const handleStartBidding = async () => {
     if (!connected) {
@@ -29,38 +29,42 @@ const Index = () => {
       return;
     }
 
-    // Get all spots to find available ones
+    // Get all spots
     const { data: spots, error } = await supabase
       .from('spots')
-      .select('id, project_name')
+      .select('id, project_name, current_bid')
       .order('id');
 
     if (error) {
       toast({
         title: "Error",
-        description: "Failed to fetch available spots",
+        description: "Failed to fetch spots",
         variant: "destructive"
       });
       return;
     }
 
-    // Filter available spots (those without a project_name)
-    const availableSpots = spots.filter(spot => !spot.project_name).map(spot => spot.id);
-
-    if (availableSpots.length === 0) {
+    if (!spots || spots.length === 0) {
       toast({
-        title: "No Spots Available",
-        description: "All spots are currently taken. Try bidding on an existing spot.",
+        title: "Error",
+        description: "No spots available in the grid",
         variant: "destructive"
       });
       return;
     }
 
-    // Pick a random available spot
-    const randomIndex = Math.floor(Math.random() * availableSpots.length);
-    const randomSpot = availableSpots[randomIndex];
+    // Pick a random spot from all spots
+    const randomIndex = Math.floor(Math.random() * spots.length);
+    const randomSpot = spots[randomIndex];
     
-    window.location.href = `/grid/${randomSpot + 1}`;
+    // Set the selected spot and open the modal
+    setSelectedSpotId(randomSpot.id);
+    setIsSpotModalOpen(true);
+  };
+
+  const handleCloseSpotModal = () => {
+    setIsSpotModalOpen(false);
+    setSelectedSpotId(null);
   };
 
   const handleBoostProject = () => {
@@ -127,6 +131,14 @@ const Index = () => {
       <main className="container mx-auto py-8 px-4">
         <MobileDropdown />
         <Grid />
+        {selectedSpotId !== null && isSpotModalOpen && (
+          <SpotModal
+            spotId={selectedSpotId}
+            onClose={handleCloseSpotModal}
+            isConnected={connected}
+            currentPrice={0}
+          />
+        )}
       </main>
 
       {/* Boost Dialog */}
