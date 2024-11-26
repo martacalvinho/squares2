@@ -94,25 +94,15 @@ export const StatsBar = ({ stats }: StatsBarProps) => {
   ];
 
   return (
-    <div className="flex gap-2 overflow-x-auto pb-2 px-2 md:px-0">
-      {statItems.map((stat, index) => (
-        <div
-          key={index}
-          className={cn(
-            "glass-effect rounded-lg px-3 py-2 flex items-center gap-2 min-w-fit hover:bg-white/5 transition-colors group relative",
-            stat.mobileHide && "hidden md:flex"
-          )}
-          title={stat.tooltip}
-        >
-          <div className={`bg-gradient-to-r ${stat.color} p-1.5 rounded-md`}>
-            <stat.icon className="w-3 h-3 text-white" />
+    <div className={`flex md:flex-row flex-col gap-4 md:gap-8`}>
+      <div className="grid grid-cols-2 gap-4">
+        {statItems.map((stat, index) => (
+          <div key={index} className="flex flex-col items-center justify-center">
+            <span className="text-sm text-muted-foreground">{stat.label}</span>
+            <span className="font-bold">{stat.value}</span>
           </div>
-          <div>
-            <p className="text-xs text-gray-400">{stat.label}</p>
-            <p className="text-sm font-semibold text-white">{stat.value}</p>
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 };
