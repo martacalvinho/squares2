@@ -2,6 +2,7 @@ import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } f
 import { WalletContextState } from '@solana/wallet-adapter-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/types/supabase';
+import { formatUrl } from "@/lib/url";
 
 type BoostSlot = Database['public']['Tables']['boost_slots']['Row'];
 type WaitlistProject = Database['public']['Tables']['boost_waitlist']['Row'];
@@ -121,16 +122,35 @@ export async function submitBoostProject(
       throw new Error('Wallet not connected');
     }
 
+    // Format URLs
+    const formattedValues = {
+      ...values,
+      project_link: formatUrl(values.project_link),
+      project_logo: values.project_logo ? formatUrl(values.project_logo) : values.project_logo,
+      telegram_link: values.telegram_link ? formatUrl(values.telegram_link) : values.telegram_link,
+      chart_link: values.chart_link ? formatUrl(values.chart_link) : values.chart_link,
+    };
+
+    try {
+      // Validate URLs
+      new URL(formattedValues.project_link);
+      if (formattedValues.project_logo) new URL(formattedValues.project_logo);
+      if (formattedValues.telegram_link) new URL(formattedValues.telegram_link);
+      if (formattedValues.chart_link) new URL(formattedValues.chart_link);
+    } catch {
+      throw new Error("Please enter valid URLs");
+    }
+
     // Process payment first
     const signature = await processBoostPayment(
       wallet,
       connection,
-      values.initial_contribution,
+      formattedValues.initial_contribution,
       solPrice
     );
 
     // Calculate boost duration
-    const { hours, minutes } = calculateBoostDuration(values.initial_contribution);
+    const { hours, minutes } = calculateBoostDuration(formattedValues.initial_contribution);
     const startTime = new Date();
     const endTime = new Date(startTime.getTime() + (hours * 60 + minutes) * 60 * 1000);
 
@@ -161,12 +181,12 @@ export async function submitBoostProject(
       const { error: waitlistError } = await supabase
         .from('boost_waitlist')
         .insert({
-          project_name: values.project_name,
-          project_logo: values.project_logo,
-          project_link: values.project_link,
-          telegram_link: values.telegram_link || null,
-          chart_link: values.chart_link || null,
-          contribution_amount: values.initial_contribution,
+          project_name: formattedValues.project_name,
+          project_logo: formattedValues.project_logo,
+          project_link: formattedValues.project_link,
+          telegram_link: formattedValues.telegram_link || null,
+          chart_link: formattedValues.chart_link || null,
+          contribution_amount: formattedValues.initial_contribution,
           transaction_signature: signature,
           wallet_address: wallet.publicKey.toString()
         });
@@ -184,23 +204,23 @@ export async function submitBoostProject(
       slot_number: availableSlot,
       start_time: startTime.toISOString(),
       end_time: endTime.toISOString(),
-      project_name: values.project_name,
-      project_logo: values.project_logo,
-      project_link: values.project_link,
-      initial_contribution: values.initial_contribution
+      project_name: formattedValues.project_name,
+      project_logo: formattedValues.project_logo,
+      project_link: formattedValues.project_link,
+      initial_contribution: formattedValues.initial_contribution
     });
 
     // Ensure data types match schema
     const boostSlotData = {
-      project_name: String(values.project_name).slice(0, 255), // varchar(255)
-      project_logo: String(values.project_logo).slice(0, 2048), // varchar(2048)
-      project_link: String(values.project_link).slice(0, 2048), // varchar(2048)
-      telegram_link: values.telegram_link ? String(values.telegram_link).slice(0, 2048) : null,
-      chart_link: values.chart_link ? String(values.chart_link).slice(0, 2048) : null,
+      project_name: String(formattedValues.project_name).slice(0, 255), // varchar(255)
+      project_logo: String(formattedValues.project_logo).slice(0, 2048), // varchar(2048)
+      project_link: String(formattedValues.project_link).slice(0, 2048), // varchar(2048)
+      telegram_link: formattedValues.telegram_link ? String(formattedValues.telegram_link).slice(0, 2048) : null,
+      chart_link: formattedValues.chart_link ? String(formattedValues.chart_link).slice(0, 2048) : null,
       slot_number: Number(availableSlot), // integer
       start_time: startTime.toISOString(), // timestamp with time zone
       end_time: endTime.toISOString(), // timestamp with time zone
-      initial_contribution: Number(values.initial_contribution) // numeric
+      initial_contribution: Number(formattedValues.initial_contribution) // numeric
     };
 
     console.log('Formatted boost slot data:', boostSlotData);
@@ -272,7 +292,7 @@ export async function submitBoostProject(
     const contributionData = {
       slot_id: slotId,
       wallet_address: wallet.publicKey.toString(),
-      amount: Number(values.initial_contribution),
+      amount: Number(formattedValues.initial_contribution),
       transaction_signature: signature
     };
 

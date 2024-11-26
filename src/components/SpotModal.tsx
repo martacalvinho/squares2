@@ -12,6 +12,8 @@ import { useAccount } from "@/integrations/wallet/use-account";
 import { useWallet } from '@solana/wallet-adapter-react';
 import { sendPayment } from '@/integrations/wallet/transaction';
 import { getSolPrice, getMinimumBid, formatSol, formatUsd } from '@/lib/price';
+import { SuccessModal } from "./SuccessModal";
+import { formatUrl } from "@/lib/url";
 
 interface SpotModalProps {
   spotId: number;
@@ -30,6 +32,8 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
   const [solPrice, setSolPrice] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [previousProjectName, setPreviousProjectName] = useState<string | undefined>();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -144,6 +148,9 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
       return;
     }
 
+    // Format the project link
+    const formattedProjectLink = formatUrl(projectLink);
+
     if (purchaseAmount < minimumBid) {
       toast({
         title: "Invalid Bid",
@@ -158,7 +165,7 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
     try {
       // Basic URL validation
       try {
-        new URL(projectLink);
+        new URL(formattedProjectLink);
         if (projectLogo) new URL(projectLogo);
       } catch {
         throw new Error("Please enter valid URLs");
@@ -195,7 +202,6 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
 
       queryClient.invalidateQueries(['spots']);
       queryClient.invalidateQueries(['activities']);
-      onClose();
     } catch (error: any) {
       console.error('Transaction failed:', error);
       
@@ -224,151 +230,167 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
   };
 
   const updateDatabase = async (signature: string) => {
-    // First get the current spot data
-    const { data: currentSpot } = await supabase
-      .from('spots')
-      .select('project_name')
-      .eq('id', spotId)
-      .single();
+    try {
+      // First get the current spot data
+      const { data: currentSpot } = await supabase
+        .from('spots')
+        .select('project_name')
+        .eq('id', spotId)
+        .single();
 
-    // Insert into spot history if there was a previous project
-    if (currentSpot?.project_name) {
-      await supabase
-        .from('spot_history')
-        .insert({
-          spot_id: spotId,
-          previous_project_name: currentSpot.project_name,
+      // Store the previous project name if it exists
+      setPreviousProjectName(currentSpot?.project_name);
+
+      // Insert into spot history if there was a previous project
+      if (currentSpot?.project_name) {
+        await supabase
+          .from('spot_history')
+          .insert({
+            spot_id: spotId,
+            previous_project_name: currentSpot.project_name,
+            project_name: projectName,
+            transaction_signature: signature
+          });
+      }
+
+      // Update the spot
+      const { error } = await supabase
+        .from('spots')
+        .update({
           project_name: projectName,
-          transaction_signature: signature
-        });
+          project_link: formattedProjectLink,
+          project_logo: projectLogo,
+          current_bid: purchaseAmount,
+          wallet_address: publicKey.toString(),
+          last_transaction: signature
+        })
+        .eq('id', spotId);
+
+      if (error) throw error;
+
+      setShowSuccess(true);
+    } catch (error) {
+      console.error('Error updating database:', error);
+      throw error;
     }
-
-    // Update the spot
-    const { error } = await supabase
-      .from('spots')
-      .update({
-        project_name: projectName,
-        project_link: projectLink,
-        project_logo: projectLogo,
-        current_bid: purchaseAmount,
-        wallet_address: publicKey.toString(),
-        last_transaction: signature
-      })
-      .eq('id', spotId);
-
-    if (error) throw error;
-
-    // Share on Twitter
-    const tweetText = encodeURIComponent(
-      `${projectName} has claimed spot #${spotId + 1} on Crypto500! 🚀\nCheck it out at: [your-website-url]`
-    );
-    const tweetUrl = `https://twitter.com/intent/tweet?text=${tweetText}`;
-    window.open(tweetUrl, '_blank');
   };
 
   return (
-    <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Claim Spot #{spotId + 1}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-6 py-4">
-          <div className="space-y-2">
-            <Label>Project Name *</Label>
-            <Input
-              placeholder="Enter your project name"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Project Link *</Label>
-            <Input
-              placeholder="https://..."
-              value={projectLink}
-              onChange={(e) => setProjectLink(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Project Logo</Label>
-            <div
-              className={cn(
-                "border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
-                isDragging ? "border-crypto-primary bg-crypto-primary/10" : "border-crypto-primary/20 hover:border-crypto-primary/40",
-                "relative"
-              )}
-              onDragEnter={handleDragEnter}
-              onDragOver={(e) => e.preventDefault()}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileSelect}
-                accept="image/*"
-                className="hidden"
-              />
-              <div className="flex flex-col items-center gap-2">
-                <ImagePlus className="w-8 h-8 text-gray-400" />
-                <p className="text-sm text-gray-400">
-                  Drag and drop an image here, or click to select
-                </p>
-              </div>
-              {projectLogo && (
-                <div className="mt-4">
-                  <img
-                    src={projectLogo}
-                    alt="Logo preview"
-                    className="max-h-32 mx-auto rounded-lg"
-                  />
-                </div>
-              )}
-            </div>
-            
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="mt-2 w-full"
-              onClick={() => setShowUrlInput(!showUrlInput)}
-            >
-              {showUrlInput ? "Hide URL input" : "Use image URL instead"}
-            </Button>
-
-            {showUrlInput && (
+    <>
+      <Dialog open onOpenChange={() => onClose()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Claim Spot #{spotId + 1}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="space-y-2">
+              <Label>Project Name *</Label>
               <Input
-                placeholder="https://... (image URL)"
-                value={projectLogo}
-                onChange={(e) => setProjectLogo(e.target.value)}
+                placeholder="Enter your project name"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
               />
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label>Purchase Amount (SOL)</Label>
-            <Input
-              type="number"
-              step="0.001"
-              min={minimumBid}
-              value={customPrice}
-              onChange={(e) => setCustomPrice(e.target.value)}
-              placeholder={`Min: ${formatSol(minimumBid)} SOL`}
-            />
-            <div className="text-sm text-gray-400">
-              Minimum purchase: {formatSol(minimumBid)} SOL 
-              {solPrice && ` ($${formatUsd(minimumBid, solPrice)})`}
             </div>
+            <div className="space-y-2">
+              <Label>Project Link *</Label>
+              <Input
+                placeholder="https://..."
+                value={projectLink}
+                onChange={(e) => setProjectLink(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Project Logo</Label>
+              <div
+                className={cn(
+                  "border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
+                  isDragging ? "border-crypto-primary bg-crypto-primary/10" : "border-crypto-primary/20 hover:border-crypto-primary/40",
+                  "relative"
+                )}
+                onDragEnter={handleDragEnter}
+                onDragOver={(e) => e.preventDefault()}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <div className="flex flex-col items-center gap-2">
+                  <ImagePlus className="w-8 h-8 text-gray-400" />
+                  <p className="text-sm text-gray-400">
+                    Drag and drop an image here, or click to select
+                  </p>
+                </div>
+                {projectLogo && (
+                  <div className="mt-4">
+                    <img
+                      src={projectLogo}
+                      alt="Logo preview"
+                      className="max-h-32 mx-auto rounded-lg"
+                    />
+                  </div>
+                )}
+              </div>
+              
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="mt-2 w-full"
+                onClick={() => setShowUrlInput(!showUrlInput)}
+              >
+                {showUrlInput ? "Hide URL input" : "Use image URL instead"}
+              </Button>
+
+              {showUrlInput && (
+                <Input
+                  placeholder="https://... (image URL)"
+                  value={projectLogo}
+                  onChange={(e) => setProjectLogo(e.target.value)}
+                />
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Purchase Amount (SOL)</Label>
+              <Input
+                type="number"
+                step="0.001"
+                min={minimumBid}
+                value={customPrice}
+                onChange={(e) => setCustomPrice(e.target.value)}
+                placeholder={`Min: ${formatSol(minimumBid)} SOL`}
+              />
+              <div className="text-sm text-gray-400">
+                Minimum purchase: {formatSol(minimumBid)} SOL 
+                {solPrice && ` ($${formatUsd(minimumBid * solPrice)})`}
+              </div>
+            </div>
+            <Button
+              className="w-full"
+              onClick={handleSubmit}
+              disabled={isSubmitting || !connected}
+            >
+              {isSubmitting ? "Claiming..." : "Claim Spot"}
+            </Button>
           </div>
-          <Button
-            className="w-full"
-            onClick={handleSubmit}
-            disabled={isSubmitting || !connected}
-          >
-            {isSubmitting ? "Claiming..." : "Claim Spot"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+      {showSuccess && (
+        <SuccessModal
+          spotId={spotId}
+          projectName={projectName}
+          previousProjectName={previousProjectName}
+          onClose={() => {
+            setShowSuccess(false);
+            onClose();
+          }}
+        />
+      )}
+    </>
   );
 };

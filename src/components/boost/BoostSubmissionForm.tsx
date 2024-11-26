@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ProjectSubmission, submitBoostProject, submitAdditionalTime } from './BoostUtils';
 import type { BoostSlot } from './Boost';
+import { formatUrl } from "@/lib/url";
 
 interface BoostSubmissionFormProps {
   onSuccess?: () => void;
@@ -92,6 +93,31 @@ export function BoostSubmissionForm({ onSuccess, solPrice, existingSlot }: Boost
     try {
       setIsSubmitting(true);
       
+      if (!formData.projectName || !formData.projectLink) {
+        toast({
+          title: "Error",
+          description: "Please fill in all required fields",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Format URLs
+      const formattedProjectLink = formatUrl(formData.projectLink);
+      const formattedTelegramLink = formData.telegramLink ? formatUrl(formData.telegramLink) : null;
+      const formattedChartLink = formData.chartLink ? formatUrl(formData.chartLink) : null;
+      const formattedProjectLogo = formData.projectLogo ? formatUrl(formData.projectLogo) : null;
+
+      // Basic URL validation
+      try {
+        new URL(formattedProjectLink);
+        if (formattedTelegramLink) new URL(formattedTelegramLink);
+        if (formattedChartLink) new URL(formattedChartLink);
+        if (formattedProjectLogo) new URL(formattedProjectLogo);
+      } catch {
+        throw new Error("Please enter valid URLs");
+      }
+
       if (existingSlot) {
         // Submit additional time
         await submitAdditionalTime(
@@ -110,10 +136,10 @@ export function BoostSubmissionForm({ onSuccess, solPrice, existingSlot }: Boost
         // Submit new project
         const projectData: ProjectSubmission = {
           project_name: formData.projectName,
-          project_logo: formData.projectLogo,
-          project_link: formData.projectLink,
-          telegram_link: formData.telegramLink || undefined,
-          chart_link: formData.chartLink || undefined,
+          project_logo: formattedProjectLogo,
+          project_link: formattedProjectLink,
+          telegram_link: formattedTelegramLink || undefined,
+          chart_link: formattedChartLink || undefined,
           initial_contribution: formData.totalContributions
         };
 

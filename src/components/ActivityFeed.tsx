@@ -192,21 +192,32 @@ export const ActivityFeed = () => {
             >
               <div className="flex items-start gap-3">
                 <div className="mt-1">
-                  <Bitcoin className="w-4 h-4 text-crypto-primary/70" />
+                  <Bitcoin className={cn(
+                    "w-4 h-4",
+                    activity.previousProject ? "text-red-500" : "text-crypto-primary/70"
+                  )} />
                 </div>
                 <div className="flex-1">
                   <p className="text-sm text-gray-300">
                     <span className="font-semibold text-crypto-primary">
                       {activity.project_name}
                     </span>{' '}
-                    {activity.isFirstBuy 
-                      ? 'bought' 
-                      : activity.previousProject 
-                        ? `stole from ${activity.previousProject}` 
-                        : 'claimed'} spot #{activity.id + 1}
+                    {activity.previousProject ? (
+                      <>
+                        <span className="text-red-500">🔥 stole</span> spot #{activity.id + 1} from{' '}
+                        <span className="text-gray-400">{activity.previousProject}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-crypto-primary">🎉 claimed</span> spot #{activity.id + 1}
+                      </>
+                    )}
                   </p>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs font-semibold text-crypto-primary">
+                    <span className={cn(
+                      "text-xs font-semibold",
+                      activity.previousProject ? "text-red-500" : "text-crypto-primary"
+                    )}>
                       {activity.current_bid} SOL
                     </span>
                     <span className="text-xs text-gray-500">
@@ -221,7 +232,7 @@ export const ActivityFeed = () => {
       </ScrollArea>
 
       {/* Comments Section */}
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4 mt-8">
         <MessageSquare className="w-5 h-5 text-crypto-primary" />
         <h3 className="text-lg font-semibold text-crypto-primary">Comments</h3>
       </div>

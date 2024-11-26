@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
+import { formatUrl } from "@/lib/url";
 
 // Component types
 type Tables = Database['public']['Tables'];
