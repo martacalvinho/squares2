@@ -9,7 +9,6 @@ import { Comments } from './Comments';
 import { ShareButtons } from './ShareButtons';
 import { Boost } from './boost/Boost';
 import { useAccount } from '@/integrations/wallet/use-account';
-import { MobileDropdown } from './MobileDropdown';
 import { getStartingPrice, getMinimumBid, getSolPrice } from '@/lib/price';
 
 interface Spot {
@@ -115,9 +114,6 @@ export const Grid = () => {
       </div>
       
       <div className="space-y-6">
-        {/* Mobile Dropdown */}
-        <MobileDropdown />
-
         <div>
           <h2 className="text-xl font-semibold text-crypto-primary mb-2">Available Spots</h2>
           <p className="text-sm text-gray-400 mb-4">Claim one of the top 500 spots on Solana</p>
