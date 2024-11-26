@@ -176,130 +176,170 @@ export const Boost = () => {
 
   return (
     <div className="relative border-b border-crypto-primary/10 bg-crypto-dark/95 backdrop-blur-md">
-      <div className="flex gap-4 overflow-x-auto py-4">
-        {slots.map((slot) => (
-          <Dialog key={slot.id}>
-            <DialogTrigger asChild>
-              <button
-                className="relative flex-shrink-0 w-12 h-12 rounded-full overflow-hidden hover:ring-2 hover:ring-crypto-primary transition-all"
-                title={`${slot.project?.name}\n${timeLeft[slot.id] || ''}`}
-              >
-                {slot.project?.logo ? (
+      <div className="container mx-auto flex items-center justify-between py-4">
+        <div className="flex items-center gap-4">
+          <h1 className="text-xl font-bold text-crypto-primary">Crypto 500</h1>
+          <div className="flex gap-4">
+            {/* Always render 5 circles */}
+            {Array.from({ length: 5 }).map((_, index) => {
+              const slot = slots[index];
+              return (
+                <Dialog key={index}>
+                  <DialogTrigger asChild>
+                    <button
+                      className="relative flex-shrink-0 w-12 h-12 rounded-full overflow-hidden hover:ring-2 hover:ring-crypto-primary transition-all"
+                      title={slot ? `${slot.project?.name}\n${timeLeft[slot.id] || ''}` : 'Empty Boost Slot'}
+                    >
+                      {slot?.project?.logo ? (
+                        <img
+                          src={slot.project.logo}
+                          alt={slot.project.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full rounded-full bg-crypto-primary/20 flex items-center justify-center">
+                          <span className="text-sm text-crypto-primary">#{index + 1}</span>
+                        </div>
+                      )}
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    {slot ? (
+                      <>
+                        <DialogHeader>
+                          <DialogTitle className="text-lg font-bold flex items-center gap-3">
+                            {slot.project?.logo && (
+                              <img
+                                src={slot.project.logo}
+                                alt={slot.project.name}
+                                className="w-8 h-8 rounded-full object-cover"
+                              />
+                            )}
+                            {slot.project?.name}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          {slot.project?.description && (
+                            <p className="text-sm text-gray-400">{slot.project.description}</p>
+                          )}
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="bg-white/5 rounded p-2">
+                              <div className="text-crypto-primary">Time Left</div>
+                              <div>{timeLeft[slot.id]}</div>
+                            </div>
+                            <div className="bg-white/5 rounded p-2">
+                              <div className="text-crypto-primary">Contributors</div>
+                              <div>{slot.contributor_count || 0}</div>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {slot.project?.website && (
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={slot.project.website} target="_blank" rel="noopener noreferrer">
+                                  Website
+                                </a>
+                              </Button>
+                            )}
+                            {slot.project?.twitter && (
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={slot.project.twitter} target="_blank" rel="noopener noreferrer">
+                                  Twitter
+                                </a>
+                              </Button>
+                            )}
+                            {slot.project?.telegram && (
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={slot.project.telegram} target="_blank" rel="noopener noreferrer">
+                                  Telegram
+                                </a>
+                              </Button>
+                            )}
+                            {slot.project?.chart && (
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={slot.project.chart} target="_blank" rel="noopener noreferrer">
+                                  Chart
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <DialogHeader>
+                          <DialogTitle>Boost Your Project</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <BoostSubmissionForm
+                            onSuccess={() => setIsDialogOpen(false)}
+                            solPrice={solPrice}
+                            slotNumber={index + 1}
+                          />
+                          {!connected && (
+                            <p className="text-sm text-crypto-primary">
+                              Please connect your wallet to boost your project.
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </DialogContent>
+                </Dialog>
+              );
+            })}
+
+            {/* Add Project Button (always visible) */}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="flex-shrink-0 w-12 h-12 rounded-full p-0"
+                  disabled={!connected}
+                  title={connected ? "Boost your project" : "Connect wallet to boost"}
+                >
+                  <Plus className="w-6 h-6" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Boost Your Project</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <BoostSubmissionForm
+                    onSuccess={() => setIsDialogOpen(false)}
+                    solPrice={solPrice}
+                  />
+                  {!connected && (
+                    <p className="text-sm text-crypto-primary">
+                      Please connect your wallet to boost your project.
+                    </p>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        {/* Waitlist indicator */}
+        {waitlistProjects.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-400">{waitlistProjects.length} projects waiting</span>
+            <div className="flex -space-x-2">
+              {waitlistProjects.slice(0, 3).map((project) => (
+                <div
+                  key={project.id}
+                  className="w-6 h-6 rounded-full bg-white/5 shrink-0 overflow-hidden opacity-30 ring-1 ring-crypto-dark"
+                >
                   <img
-                    src={slot.project.logo}
-                    alt={slot.project.name}
+                    src={project.project_logo}
+                    alt={project.project_name}
                     className="w-full h-full object-cover"
                   />
-                ) : (
-                  <div className="w-full h-full rounded-full bg-crypto-primary/20" />
-                )}
-              </button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle className="text-lg font-bold flex items-center gap-3">
-                  {slot.project?.logo && (
-                    <img
-                      src={slot.project.logo}
-                      alt={slot.project.name}
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  )}
-                  {slot.project?.name}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                {slot.project?.description && (
-                  <p className="text-sm text-gray-400">{slot.project.description}</p>
-                )}
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="bg-white/5 rounded p-2">
-                    <div className="text-crypto-primary">Time Left</div>
-                    <div>{timeLeft[slot.id]}</div>
-                  </div>
-                  <div className="bg-white/5 rounded p-2">
-                    <div className="text-crypto-primary">Contributors</div>
-                    <div>{slot.contributor_count || 0}</div>
-                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {slot.project?.website && (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={slot.project.website} target="_blank" rel="noopener noreferrer">
-                        Website
-                      </a>
-                    </Button>
-                  )}
-                  {slot.project?.twitter && (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={slot.project.twitter} target="_blank" rel="noopener noreferrer">
-                        Twitter
-                      </a>
-                    </Button>
-                  )}
-                  {slot.project?.telegram && (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={slot.project.telegram} target="_blank" rel="noopener noreferrer">
-                        Telegram
-                      </a>
-                    </Button>
-                  )}
-                  {slot.project?.chart && (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={slot.project.chart} target="_blank" rel="noopener noreferrer">
-                        Chart
-                      </a>
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        ))}
-
-        {/* Waitlist Projects (faded) */}
-        {waitlistProjects.map((project) => (
-          <div
-            key={project.id}
-            className="w-8 h-8 rounded-full bg-white/5 shrink-0 overflow-hidden opacity-30"
-          >
-            <img
-              src={project.project_logo}
-              alt={project.project_name}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        ))}
-
-        {/* Add Project Button */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button
-              variant="outline"
-              className="flex-shrink-0 w-12 h-12 rounded-full p-0"
-              disabled={!connected}
-              title={connected ? "Boost your project" : "Connect wallet to boost"}
-            >
-              <Plus className="w-6 h-6" />
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Boost Your Project</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <BoostSubmissionForm
-                onSuccess={() => setIsDialogOpen(false)}
-                solPrice={solPrice}
-              />
-              {!connected && (
-                <p className="text-sm text-crypto-primary">
-                  Please connect your wallet to boost your project.
-                </p>
-              )}
+              ))}
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        )}
       </div>
     </div>
   );

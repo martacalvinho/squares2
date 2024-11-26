@@ -7,7 +7,6 @@ import { ActivityFeed } from './ActivityFeed';
 import { SearchFilters } from './SearchFilters';
 import { Comments } from './Comments';
 import { ShareButtons } from './ShareButtons';
-import { Boost } from './boost/Boost';
 import { useAccount } from '@/integrations/wallet/use-account';
 import { getStartingPrice, getMinimumBid, getSolPrice } from '@/lib/price';
 
@@ -109,9 +108,6 @@ export const Grid = () => {
 
   return (
     <div className="w-full max-w-[1800px] mx-auto p-4">
-      <div className="mt-4 mb-8">
-        <Boost />
-      </div>
       
       <div className="space-y-6">
         <div>
