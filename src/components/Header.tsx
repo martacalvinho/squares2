@@ -1,6 +1,15 @@
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { Menu } from 'lucide-react';
 import { Rules } from './Rules';
 import { StatsBar } from './StatsBar';
+import { Button } from './ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 export const Header = () => {
   return (
@@ -10,9 +19,39 @@ export const Header = () => {
           Crypto 500
         </h1>
         <div className="flex items-center gap-4">
-          <StatsBar />
-          <div className="h-6 w-px bg-crypto-primary/10" /> {/* Divider */}
-          <Rules />
+          {/* Desktop View */}
+          <div className="hidden md:flex items-center gap-4">
+            <StatsBar />
+            <div className="h-6 w-px bg-crypto-primary/10" />
+            <Rules />
+          </div>
+          
+          {/* Mobile Menu */}
+          <div className="md:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent>
+                <SheetHeader>
+                  <SheetTitle>Menu</SheetTitle>
+                </SheetHeader>
+                <div className="py-4 space-y-4">
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium">Stats</h3>
+                    <StatsBar />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium">Info</h3>
+                    <Rules />
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+
           <WalletMultiButton />
         </div>
       </div>
