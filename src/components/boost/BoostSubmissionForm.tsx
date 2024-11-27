@@ -9,6 +9,8 @@ import { useToast } from '@/hooks/use-toast';
 import { ProjectSubmission, submitBoostProject, submitAdditionalTime } from './BoostUtils';
 import type { BoostSlot } from './Boost';
 import { formatUrl } from "@/lib/url";
+import { useMobile } from "@/hooks/use-mobile";
+import { MobileBoostSubmissionForm } from "../mobile/boost/BoostSubmissionForm";
 
 interface BoostSubmissionFormProps {
   onSuccess?: () => void;
@@ -16,7 +18,19 @@ interface BoostSubmissionFormProps {
   existingSlot?: BoostSlot;
 }
 
-export function BoostSubmissionForm({ onSuccess, solPrice, existingSlot }: BoostSubmissionFormProps) {
+export const BoostSubmissionForm = ({ onSuccess, solPrice, existingSlot }: BoostSubmissionFormProps) => {
+  const isMobile = useMobile();
+
+  if (isMobile) {
+    return (
+      <MobileBoostSubmissionForm
+        onSuccess={onSuccess}
+        solPrice={solPrice}
+        existingSlot={existingSlot}
+      />
+    );
+  }
+
   const { connection } = useConnection();
   const wallet = useWallet();
   const { toast } = useToast();

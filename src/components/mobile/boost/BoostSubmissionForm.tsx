@@ -7,58 +7,48 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { ImagePlus } from "lucide-react";
-import { useAccount } from "@/integrations/wallet/use-account";
+import { ImagePlus, X } from "lucide-react";
 import { useWallet } from '@solana/wallet-adapter-react';
 import { sendPayment } from '@/integrations/wallet/transaction';
-import { getSolPrice, getMinimumBid, formatSol, formatUsd } from '@/lib/price';
-import { SuccessModal } from "./SuccessModal";
+import { getSolPrice, formatSol, formatUsd } from '@/lib/price';
 import { formatUrl } from "@/lib/url";
-import { useMobile } from "@/hooks/use-mobile";
-import { MobileSpotModal } from "./mobile/SpotModal";
 
-interface SpotModalProps {
-  spotId: number;
+interface BoostSubmissionFormProps {
+  slotId: number;
   onClose: () => void;
-  isConnected: boolean;
   currentPrice: number;
 }
 
-export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotModalProps) => {
-  const isMobile = useMobile();
-
-  if (isMobile) {
-    return (
-      <MobileSpotModal
-        spotId={spotId}
-        onClose={onClose}
-        isConnected={isConnected}
-        currentPrice={currentPrice}
-      />
-    );
-  }
-
+export const MobileBoostSubmissionForm = ({ slotId, onClose, currentPrice }: BoostSubmissionFormProps) => {
   const { publicKey, signTransaction, connected, connecting, select } = useWallet();
   const [projectName, setProjectName] = useState("");
   const [projectLink, setProjectLink] = useState("");
   const [projectLogo, setProjectLogo] = useState("");
+  const [telegramLink, setTelegramLink] = useState("");
+  const [chartLink, setChartLink] = useState("");
   const [customPrice, setCustomPrice] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [solPrice, setSolPrice] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [showUrlInput, setShowUrlInput] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [previousProjectName, setPreviousProjectName] = useState<string | undefined>();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const minimumBid = Math.max(currentPrice * 1.1, 0.1);
+  const purchaseAmount = Number(customPrice) || minimumBid;
 
-  // Ensure wallet is ready
   useEffect(() => {
     if (!connected && !connecting) {
       select('phantom');
     }
   }, [connected, connecting, select]);
+
+  useEffect(() => {
+    const fetchSolPrice = async () => {
+      const price = await getSolPrice();
+      setSolPrice(price);
+    };
+    fetchSolPrice();
+  }, []);
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -107,53 +97,7 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
     reader.readAsDataURL(file);
   };
 
-  // Fetch current SOL price
-  useEffect(() => {
-    const fetchSolPrice = async () => {
-      try {
-        const price = await getSolPrice();
-        setSolPrice(price);
-      } catch (error) {
-        console.error('Error fetching SOL price:', error);
-        toast({
-          title: "Warning",
-          description: "Could not fetch SOL price. Using fallback price.",
-          variant: "destructive",
-        });
-      }
-    };
-    fetchSolPrice();
-  }, []);
-
-  // Calculate minimum purchase amount (current price + $1 worth of SOL)
-  const getMinPurchaseAmount = () => {
-    if (!solPrice) return currentPrice + 0.005; // Fallback if price fetch fails
-    const oneDollarInSol = 1 / solPrice;
-    return currentPrice + oneDollarInSol;
-  };
-
-  const minPurchaseAmount = getMinPurchaseAmount();
-  const minimumBid = getMinimumBid(currentPrice, solPrice);
-  const purchaseAmount = Number(customPrice) || minimumBid;
-
   const handleSubmit = async () => {
-    if (!connected || !publicKey || !signTransaction) {
-      try {
-        await select('phantom');
-        toast({
-          title: "Wallet Connection",
-          description: "Please approve the connection request in Phantom",
-        });
-      } catch (error) {
-        toast({
-          title: "Wallet Error",
-          description: "Failed to connect to Phantom wallet",
-          variant: "destructive",
-        });
-      }
-      return;
-    }
-
     if (!projectName || !projectLink) {
       toast({
         title: "Error",
@@ -163,60 +107,42 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
       return;
     }
 
-    // Format the project link
+    // Format URLs
     const formattedProjectLink = formatUrl(projectLink);
+    const formattedTelegramLink = telegramLink ? formatUrl(telegramLink) : null;
+    const formattedChartLink = chartLink ? formatUrl(chartLink) : null;
 
     if (purchaseAmount < minimumBid) {
       toast({
         title: "Invalid Bid",
-        description: `Minimum bid must be ${formatSol(minimumBid)} SOL ($${formatUsd(minimumBid * solPrice)})`,
+        description: `Minimum bid must be ${formatSol(minimumBid)} SOL ($${formatUsd(minimumBid * (solPrice || 0))})`,
         variant: "destructive",
       });
       return;
     }
 
     setIsSubmitting(true);
-
     try {
       // Basic URL validation
       try {
         new URL(formattedProjectLink);
+        if (formattedTelegramLink) new URL(formattedTelegramLink);
+        if (formattedChartLink) new URL(formattedChartLink);
         if (projectLogo) new URL(projectLogo);
       } catch {
         throw new Error("Please enter valid URLs");
       }
 
-      // Check if project name already exists
-      const { data: existingProject } = await supabase
-        .from('spots')
-        .select('id, project_name')
-        .eq('project_name', projectName)
-        .single();
-
-      if (existingProject) {
-        const confirmed = window.confirm(
-          `This project already exists in spot #${existingProject.id + 1}. Are you sure you want to claim another spot?`
-        );
-        if (!confirmed) {
-          setIsSubmitting(false);
-          return;
-        }
-      }
-
-      console.log('Initiating payment of', purchaseAmount, 'SOL');
-      const signature = await sendPayment(purchaseAmount, publicKey, signTransaction);
-      console.log('Payment sent, signature:', signature);
-
-      // Update database only after successful payment
+      const signature = await sendPayment(purchaseAmount);
       await updateDatabase(signature);
-      
+
       toast({
         title: "Success",
-        description: "Payment sent and spot claimed successfully!",
+        description: "Payment sent and boost slot claimed successfully!",
       });
 
-      queryClient.invalidateQueries(['spots']);
-      queryClient.invalidateQueries(['activities']);
+      queryClient.invalidateQueries(['boost_slots']);
+      onClose();
     } catch (error: any) {
       console.error('Transaction failed:', error);
       
@@ -246,44 +172,21 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
 
   const updateDatabase = async (signature: string) => {
     try {
-      // First get the current spot data
-      const { data: currentSpot } = await supabase
-        .from('spots')
-        .select('project_name')
-        .eq('id', spotId)
-        .single();
-
-      // Store the previous project name if it exists
-      setPreviousProjectName(currentSpot?.project_name);
-
-      // Insert into spot history if there was a previous project
-      if (currentSpot?.project_name) {
-        await supabase
-          .from('spot_history')
-          .insert({
-            spot_id: spotId,
-            previous_project_name: currentSpot.project_name,
-            project_name: projectName,
-            transaction_signature: signature
-          });
-      }
-
-      // Update the spot
       const { error } = await supabase
-        .from('spots')
+        .from('boost_slots')
         .update({
           project_name: projectName,
-          project_link: formattedProjectLink,
+          project_link: projectLink,
           project_logo: projectLogo,
+          telegram_link: telegramLink,
+          chart_link: chartLink,
           current_bid: purchaseAmount,
-          wallet_address: publicKey.toString(),
+          wallet_address: publicKey?.toString(),
           last_transaction: signature
         })
-        .eq('id', spotId);
+        .eq('id', slotId);
 
       if (error) throw error;
-
-      setShowSuccess(true);
     } catch (error) {
       console.error('Error updating database:', error);
       throw error;
@@ -291,13 +194,24 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
   };
 
   return (
-    <>
-      <Dialog open onOpenChange={() => onClose()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Claim Spot #{spotId + 1}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="sm:max-w-full h-full md:h-auto m-0 p-0 md:p-6 rounded-none md:rounded-lg">
+        <div className="sticky top-0 bg-background z-10 px-4 py-3 border-b">
+          <div className="flex items-center justify-between">
+            <DialogTitle>Claim Boost Slot #{slotId}</DialogTitle>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={onClose}
+              className="h-8 w-8"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="p-4 space-y-6 overflow-y-auto">
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label>Project Name *</Label>
               <Input
@@ -306,21 +220,40 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
                 onChange={(e) => setProjectName(e.target.value)}
               />
             </div>
+
             <div className="space-y-2">
               <Label>Project Link *</Label>
               <Input
-                placeholder="https://..."
+                placeholder="www.example.com"
                 value={projectLink}
                 onChange={(e) => setProjectLink(e.target.value)}
               />
             </div>
+
+            <div className="space-y-2">
+              <Label>Telegram Link</Label>
+              <Input
+                placeholder="t.me/your-group"
+                value={telegramLink}
+                onChange={(e) => setTelegramLink(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Chart Link</Label>
+              <Input
+                placeholder="www.dextools.io/..."
+                value={chartLink}
+                onChange={(e) => setChartLink(e.target.value)}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label>Project Logo</Label>
               <div
                 className={cn(
                   "border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
-                  isDragging ? "border-crypto-primary bg-crypto-primary/10" : "border-crypto-primary/20 hover:border-crypto-primary/40",
-                  "relative"
+                  isDragging ? "border-crypto-primary bg-crypto-primary/10" : "border-crypto-primary/20 hover:border-crypto-primary/40"
                 )}
                 onDragEnter={handleDragEnter}
                 onDragOver={(e) => e.preventDefault()}
@@ -335,13 +268,7 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
                   accept="image/*"
                   className="hidden"
                 />
-                <div className="flex flex-col items-center gap-2">
-                  <ImagePlus className="w-8 h-8 text-gray-400" />
-                  <p className="text-sm text-gray-400">
-                    Drag and drop an image here, or click to select
-                  </p>
-                </div>
-                {projectLogo && (
+                {projectLogo ? (
                   <div className="mt-4">
                     <img
                       src={projectLogo}
@@ -349,27 +276,17 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
                       className="max-h-32 mx-auto rounded-lg"
                     />
                   </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <ImagePlus className="w-8 h-8 text-gray-400" />
+                    <p className="text-sm text-gray-400">
+                      Tap to upload logo
+                    </p>
+                  </div>
                 )}
               </div>
-              
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="mt-2 w-full"
-                onClick={() => setShowUrlInput(!showUrlInput)}
-              >
-                {showUrlInput ? "Hide URL input" : "Use image URL instead"}
-              </Button>
-
-              {showUrlInput && (
-                <Input
-                  placeholder="https://... (image URL)"
-                  value={projectLogo}
-                  onChange={(e) => setProjectLogo(e.target.value)}
-                />
-              )}
             </div>
+
             <div className="space-y-2">
               <Label>Purchase Amount (SOL)</Label>
               <Input
@@ -385,27 +302,19 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
                 {solPrice && ` ($${formatUsd(minimumBid * solPrice)})`}
               </div>
             </div>
-            <Button
-              className="w-full"
-              onClick={handleSubmit}
-              disabled={isSubmitting || !connected}
-            >
-              {isSubmitting ? "Claiming..." : "Claim Spot"}
-            </Button>
           </div>
-        </DialogContent>
-      </Dialog>
-      {showSuccess && (
-        <SuccessModal
-          spotId={spotId}
-          projectName={projectName}
-          previousProjectName={previousProjectName}
-          onClose={() => {
-            setShowSuccess(false);
-            onClose();
-          }}
-        />
-      )}
-    </>
+        </div>
+
+        <div className="sticky bottom-0 bg-background border-t p-4">
+          <Button
+            className="w-full"
+            onClick={handleSubmit}
+            disabled={isSubmitting || !connected}
+          >
+            {isSubmitting ? "Claiming..." : "Claim Boost Slot"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };

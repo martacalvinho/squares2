@@ -8,8 +8,11 @@ import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { useToast } from "./ui/use-toast";
 import { useAccount } from "@/integrations/wallet/use-account";
+import { useMobile } from "@/hooks/use-mobile";
+import { MobileActivityFeed } from "./mobile/ActivityFeed";
 
 export const ActivityFeed = () => {
+  const isMobile = useMobile();
   const [comment, setComment] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -35,8 +38,6 @@ export const ActivityFeed = () => {
         throw spotsError;
       }
 
-      console.log('Recent spots:', recentSpots);
-
       // Get spot history for these spots
       const spotIds = recentSpots?.map(s => s.id) || [];
       const { data: history, error: historyError } = await supabase
@@ -48,8 +49,6 @@ export const ActivityFeed = () => {
       if (historyError) {
         console.error('Error fetching history:', historyError);
       }
-
-      console.log('Spot history:', history);
 
       // Map spots to determine if they're new or stolen
       return (recentSpots || []).map(spot => {
@@ -84,12 +83,14 @@ export const ActivityFeed = () => {
         console.error('Error fetching comments:', error);
         return [];
       }
-      
-      console.log('Comments:', data);
       return data || [];
     },
     refetchInterval: 5000
   });
+
+  if (isMobile) {
+    return null;
+  }
 
   const handleCommentSubmit = async () => {
     console.log('Current wallet state:', { address, isConnected });

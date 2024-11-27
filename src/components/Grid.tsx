@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { SpotModal } from './SpotModal';
@@ -7,59 +7,69 @@ import { SearchFilters } from './SearchFilters';
 import { ShareButtons } from './ShareButtons';
 import { useAccount } from '@/integrations/wallet/use-account';
 import { ActivityFeed } from './ActivityFeed';
+import { useDebounce } from '@/hooks/useDebounce';
 
 export const Grid = () => {
   const [selectedSpot, setSelectedSpot] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priceRange, setPriceRange] = useState('all');
-  const [isDesktop, setIsDesktop] = useState(false);
   const { isConnected } = useAccount();
+  
+  // Debounce search term
+  const debouncedSearch = useDebounce(searchTerm, 300);
 
-  useEffect(() => {
-    const checkIfDesktop = () => {
-      setIsDesktop(window.innerWidth >= 768);
-    };
+  // Parse price range
+  const priceRangeValues = useMemo(() => {
+    if (priceRange === 'all') return null;
+    if (priceRange === '50+') return { min: 50, max: null };
+    const [min, max] = priceRange.split('-').map(Number);
+    return { min, max };
+  }, [priceRange]);
 
-    checkIfDesktop();
-    window.addEventListener('resize', checkIfDesktop);
-
-    return () => {
-      window.removeEventListener('resize', checkIfDesktop);
-    };
-  }, []);
-
-  // Fetch spots from Supabase
-  const { data: spots = [], isLoading } = useQuery({
-    queryKey: ['spots'],
+  // Fetch spots from Supabase with server-side filtering
+  const { data: spots = [], isLoading, error } = useQuery({
+    queryKey: ['spots', debouncedSearch, statusFilter, priceRangeValues],
     queryFn: async () => {
-      console.log('Fetching spots...');
+      console.log('Fetching spots with filters:', { debouncedSearch, statusFilter, priceRangeValues });
       
-      // First check if we have any spots
-      const { count, error: countError } = await supabase
-        .from('spots')
-        .select('*', { count: 'exact', head: true });
-
-      console.log('Spots count:', count);
-
-      if (countError) {
-        console.error('Error checking spots count:', countError);
-        throw countError;
-      }
-
-      // Fetch all spots
-      const { data, error } = await supabase
+      let query = supabase
         .from('spots')
         .select('*')
         .order('id');
+
+      // Apply search filter
+      if (debouncedSearch) {
+        const isSpotId = !isNaN(Number(debouncedSearch));
+        if (isSpotId) {
+          query = query.eq('id', Number(debouncedSearch) - 1);
+        } else {
+          query = query.ilike('project_name', `%${debouncedSearch}%`);
+        }
+      }
+
+      // Apply status filter
+      if (statusFilter !== 'all') {
+        query = query.is('project_name', statusFilter === 'empty' ? null : 'not.null');
+      }
+
+      // Apply price filter
+      if (priceRangeValues) {
+        if (priceRangeValues.min !== null) {
+          query = query.gte('current_bid', priceRangeValues.min);
+        }
+        if (priceRangeValues.max !== null) {
+          query = query.lte('current_bid', priceRangeValues.max);
+        }
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching spots:', error);
         throw error;
       }
 
-      console.log('Fetched spots:', data);
-      
       // Map spots to our format
       return data.map(spot => {
         const startingPrice = 0.005; // $1 equivalent in SOL
@@ -79,42 +89,18 @@ export const Grid = () => {
     refetchInterval: 5000
   });
 
-  // Filter spots based on search term and filters
-  const filteredSpots = spots.filter(spot => {
-    // Search term filter
-    const searchMatch = !searchTerm || 
-      (spot.project?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       (spot.id + 1).toString() === searchTerm);
-
-    // Status filter
-    const statusMatch = statusFilter === 'all' ||
-      (statusFilter === 'occupied' && spot.project) ||
-      (statusFilter === 'empty' && !spot.project);
-
-    // Price range filter
-    let priceMatch = true;
-    if (priceRange !== 'all') {
-      const [min, max] = priceRange === '50+' 
-        ? [50, Infinity] 
-        : priceRange.split('-').map(Number);
-      priceMatch = spot.currentPrice >= min && spot.currentPrice <= max;
-    }
-
-    return searchMatch && statusMatch && priceMatch;
-  });
-
-  if (isLoading) {
+  if (error) {
     return (
       <div className="w-full h-[50vh] flex items-center justify-center">
-        <div className="text-crypto-primary">Loading spots...</div>
+        <div className="text-red-500">Error loading spots. Please try again later.</div>
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-[1800px] mx-auto p-4">      
+    <div className="w-full max-w-[1800px] mx-auto">      
       <div className="space-y-6">
-        <div>
+        <div className="px-4">
           <h2 className="text-xl font-semibold text-crypto-primary mb-2">Available Spots</h2>
           <p className="text-sm text-gray-400 mb-4">Claim one of the top 500 spots on Solana</p>
           <SearchFilters
@@ -127,19 +113,29 @@ export const Grid = () => {
           />
         </div>
       
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          <div className="md:col-span-9">
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-4 md:gap-8 animate-fade-in">
-              {filteredSpots.map((spot) => (
-                <GridSpot
-                  key={spot.id}
-                  spot={spot}
-                  onClick={() => setSelectedSpot(spot.id)}
-                />
-              ))}
+        <div className="grid grid-cols-12 gap-8">
+          <div className="col-span-9">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4 px-4">
+              {isLoading ? (
+                Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="animate-pulse bg-crypto-dark/50 rounded-xl h-[140px]" />
+                ))
+              ) : spots.length === 0 ? (
+                <div className="col-span-full text-center text-gray-400 py-8">
+                  No spots found matching your criteria
+                </div>
+              ) : (
+                spots.map((spot) => (
+                  <GridSpot
+                    key={spot.id}
+                    spot={spot}
+                    onClick={() => setSelectedSpot(spot.id)}
+                  />
+                ))
+              )}
             </div>
           </div>
-          <div className="md:col-span-3 space-y-8">
+          <div className="col-span-3 space-y-8 px-4">
             <div className="glass-effect rounded-xl p-4">
               <ActivityFeed />
             </div>

@@ -7,37 +7,22 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, X } from "lucide-react";
 import { useAccount } from "@/integrations/wallet/use-account";
 import { useWallet } from '@solana/wallet-adapter-react';
 import { sendPayment } from '@/integrations/wallet/transaction';
 import { getSolPrice, getMinimumBid, formatSol, formatUsd } from '@/lib/price';
-import { SuccessModal } from "./SuccessModal";
 import { formatUrl } from "@/lib/url";
-import { useMobile } from "@/hooks/use-mobile";
-import { MobileSpotModal } from "./mobile/SpotModal";
+import { SuccessModal } from "../SuccessModal";
 
-interface SpotModalProps {
+interface MobileSpotModalProps {
   spotId: number;
   onClose: () => void;
   isConnected: boolean;
   currentPrice: number;
 }
 
-export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotModalProps) => {
-  const isMobile = useMobile();
-
-  if (isMobile) {
-    return (
-      <MobileSpotModal
-        spotId={spotId}
-        onClose={onClose}
-        isConnected={isConnected}
-        currentPrice={currentPrice}
-      />
-    );
-  }
-
+export const MobileSpotModal = ({ spotId, onClose, isConnected, currentPrice }: MobileSpotModalProps) => {
   const { publicKey, signTransaction, connected, connecting, select } = useWallet();
   const [projectName, setProjectName] = useState("");
   const [projectLink, setProjectLink] = useState("");
@@ -46,12 +31,13 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [solPrice, setSolPrice] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [showUrlInput, setShowUrlInput] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [previousProjectName, setPreviousProjectName] = useState<string | undefined>();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const minimumBid = getMinimumBid(currentPrice);
+  const purchaseAmount = Number(customPrice) || minimumBid;
 
   // Ensure wallet is ready
   useEffect(() => {
@@ -107,53 +93,7 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
     reader.readAsDataURL(file);
   };
 
-  // Fetch current SOL price
-  useEffect(() => {
-    const fetchSolPrice = async () => {
-      try {
-        const price = await getSolPrice();
-        setSolPrice(price);
-      } catch (error) {
-        console.error('Error fetching SOL price:', error);
-        toast({
-          title: "Warning",
-          description: "Could not fetch SOL price. Using fallback price.",
-          variant: "destructive",
-        });
-      }
-    };
-    fetchSolPrice();
-  }, []);
-
-  // Calculate minimum purchase amount (current price + $1 worth of SOL)
-  const getMinPurchaseAmount = () => {
-    if (!solPrice) return currentPrice + 0.005; // Fallback if price fetch fails
-    const oneDollarInSol = 1 / solPrice;
-    return currentPrice + oneDollarInSol;
-  };
-
-  const minPurchaseAmount = getMinPurchaseAmount();
-  const minimumBid = getMinimumBid(currentPrice, solPrice);
-  const purchaseAmount = Number(customPrice) || minimumBid;
-
   const handleSubmit = async () => {
-    if (!connected || !publicKey || !signTransaction) {
-      try {
-        await select('phantom');
-        toast({
-          title: "Wallet Connection",
-          description: "Please approve the connection request in Phantom",
-        });
-      } catch (error) {
-        toast({
-          title: "Wallet Error",
-          description: "Failed to connect to Phantom wallet",
-          variant: "destructive",
-        });
-      }
-      return;
-    }
-
     if (!projectName || !projectLink) {
       toast({
         title: "Error",
@@ -169,14 +109,13 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
     if (purchaseAmount < minimumBid) {
       toast({
         title: "Invalid Bid",
-        description: `Minimum bid must be ${formatSol(minimumBid)} SOL ($${formatUsd(minimumBid * solPrice)})`,
+        description: `Minimum bid must be ${formatSol(minimumBid)} SOL ($${formatUsd(minimumBid * (solPrice || 0))})`,
         variant: "destructive",
       });
       return;
     }
 
     setIsSubmitting(true);
-
     try {
       // Basic URL validation
       try {
@@ -186,30 +125,9 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
         throw new Error("Please enter valid URLs");
       }
 
-      // Check if project name already exists
-      const { data: existingProject } = await supabase
-        .from('spots')
-        .select('id, project_name')
-        .eq('project_name', projectName)
-        .single();
-
-      if (existingProject) {
-        const confirmed = window.confirm(
-          `This project already exists in spot #${existingProject.id + 1}. Are you sure you want to claim another spot?`
-        );
-        if (!confirmed) {
-          setIsSubmitting(false);
-          return;
-        }
-      }
-
-      console.log('Initiating payment of', purchaseAmount, 'SOL');
-      const signature = await sendPayment(purchaseAmount, publicKey, signTransaction);
-      console.log('Payment sent, signature:', signature);
-
-      // Update database only after successful payment
+      const signature = await sendPayment(purchaseAmount);
       await updateDatabase(signature);
-      
+
       toast({
         title: "Success",
         description: "Payment sent and spot claimed successfully!",
@@ -273,7 +191,7 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
         .from('spots')
         .update({
           project_name: projectName,
-          project_link: formattedProjectLink,
+          project_link: projectLink,
           project_logo: projectLogo,
           current_bid: purchaseAmount,
           wallet_address: publicKey.toString(),
@@ -293,98 +211,99 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
   return (
     <>
       <Dialog open onOpenChange={() => onClose()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Claim Spot #{spotId + 1}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            <div className="space-y-2">
-              <Label>Project Name *</Label>
-              <Input
-                placeholder="Enter your project name"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Project Link *</Label>
-              <Input
-                placeholder="https://..."
-                value={projectLink}
-                onChange={(e) => setProjectLink(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Project Logo</Label>
-              <div
-                className={cn(
-                  "border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
-                  isDragging ? "border-crypto-primary bg-crypto-primary/10" : "border-crypto-primary/20 hover:border-crypto-primary/40",
-                  "relative"
-                )}
-                onDragEnter={handleDragEnter}
-                onDragOver={(e) => e.preventDefault()}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
+        <DialogContent className="sm:max-w-full h-full md:h-auto m-0 p-0 md:p-6 rounded-none md:rounded-lg">
+          <div className="sticky top-0 bg-background z-10 px-4 py-3 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle>Claim Spot #{spotId + 1}</DialogTitle>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={onClose}
+                className="h-8 w-8"
               >
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  accept="image/*"
-                  className="hidden"
-                />
-                <div className="flex flex-col items-center gap-2">
-                  <ImagePlus className="w-8 h-8 text-gray-400" />
-                  <p className="text-sm text-gray-400">
-                    Drag and drop an image here, or click to select
-                  </p>
-                </div>
-                {projectLogo && (
-                  <div className="mt-4">
-                    <img
-                      src={projectLogo}
-                      alt="Logo preview"
-                      className="max-h-32 mx-auto rounded-lg"
-                    />
-                  </div>
-                )}
-              </div>
-              
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="mt-2 w-full"
-                onClick={() => setShowUrlInput(!showUrlInput)}
-              >
-                {showUrlInput ? "Hide URL input" : "Use image URL instead"}
+                <X className="h-4 w-4" />
               </Button>
-
-              {showUrlInput && (
-                <Input
-                  placeholder="https://... (image URL)"
-                  value={projectLogo}
-                  onChange={(e) => setProjectLogo(e.target.value)}
-                />
-              )}
             </div>
-            <div className="space-y-2">
-              <Label>Purchase Amount (SOL)</Label>
-              <Input
-                type="number"
-                step="0.001"
-                min={minimumBid}
-                value={customPrice}
-                onChange={(e) => setCustomPrice(e.target.value)}
-                placeholder={`Min: ${formatSol(minimumBid)} SOL`}
-              />
-              <div className="text-sm text-gray-400">
-                Minimum purchase: {formatSol(minimumBid)} SOL 
-                {solPrice && ` ($${formatUsd(minimumBid * solPrice)})`}
+          </div>
+          
+          <div className="p-4 space-y-6 overflow-y-auto">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Project Name *</Label>
+                <Input
+                  placeholder="Enter your project name"
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Project Link *</Label>
+                <Input
+                  placeholder="www.example.com"
+                  value={projectLink}
+                  onChange={(e) => setProjectLink(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Project Logo</Label>
+                <div
+                  className={cn(
+                    "border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
+                    isDragging ? "border-crypto-primary bg-crypto-primary/10" : "border-crypto-primary/20 hover:border-crypto-primary/40"
+                  )}
+                  onDragEnter={handleDragEnter}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileSelect}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  {projectLogo ? (
+                    <div className="mt-4">
+                      <img
+                        src={projectLogo}
+                        alt="Logo preview"
+                        className="max-h-32 mx-auto rounded-lg"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <ImagePlus className="w-8 h-8 text-gray-400" />
+                      <p className="text-sm text-gray-400">
+                        Tap to upload logo
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Purchase Amount (SOL)</Label>
+                <Input
+                  type="number"
+                  step="0.001"
+                  min={minimumBid}
+                  value={customPrice}
+                  onChange={(e) => setCustomPrice(e.target.value)}
+                  placeholder={`Min: ${formatSol(minimumBid)} SOL`}
+                />
+                <div className="text-sm text-gray-400">
+                  Minimum purchase: {formatSol(minimumBid)} SOL 
+                  {solPrice && ` ($${formatUsd(minimumBid * solPrice)})`}
+                </div>
               </div>
             </div>
+          </div>
+
+          <div className="sticky bottom-0 bg-background border-t p-4">
             <Button
               className="w-full"
               onClick={handleSubmit}
@@ -395,6 +314,7 @@ export const SpotModal = ({ spotId, onClose, isConnected, currentPrice }: SpotMo
           </div>
         </DialogContent>
       </Dialog>
+
       {showSuccess && (
         <SuccessModal
           spotId={spotId}

@@ -1,23 +1,26 @@
 import { Grid } from "@/components/Grid";
 import { Header } from "@/components/Header";
 import { Boost } from "@/components/boost/Boost";
-import { MobileDropdown } from "@/components/MobileDropdown";
+import { MobileBoost } from "@/components/mobile/MobileBoost";
+import { MobileGrid } from "@/components/mobile/MobileGrid";
 import { Rocket } from "lucide-react";
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
+import { SpotModal } from "@/components/SpotModal";
+import { useAccount } from "@/integrations/wallet/use-account";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { BoostSubmissionForm } from '@/components/boost/BoostSubmissionForm';
 import { supabase } from '@/lib/supabase';
-import { SpotModal } from '@/components/SpotModal';
 
-const Index = () => {
+export default function Index() {
   const { connected } = useWallet();
-  const { toast } = useToast();
-  const [isBoostDialogOpen, setIsBoostDialogOpen] = useState(false);
+  const { isConnected } = useAccount();
   const [selectedSpotId, setSelectedSpotId] = useState<number | null>(null);
   const [isSpotModalOpen, setIsSpotModalOpen] = useState(false);
+  const [isBoostDialogOpen, setIsBoostDialogOpen] = useState(false);
+  const { toast } = useToast();
 
   const handleStartBidding = async () => {
     if (!connected) {
@@ -63,8 +66,8 @@ const Index = () => {
   };
 
   const handleCloseSpotModal = () => {
-    setIsSpotModalOpen(false);
     setSelectedSpotId(null);
+    setIsSpotModalOpen(false);
   };
 
   const handleBoostProject = () => {
@@ -76,16 +79,15 @@ const Index = () => {
       });
       return;
     }
-
     setIsBoostDialogOpen(true);
   };
 
   return (
-    <div className="min-h-screen bg-crypto-dark">
+    <div className="min-h-screen bg-crypto-background text-white">
       <Header />
-      
-      {/* Hero Section with Boosted Projects */}
-      <section className="relative overflow-hidden">
+
+      {/* Desktop Hero */}
+      <section className="relative overflow-hidden hidden md:block">
         <div className="hero-gradient absolute inset-0" />
         <div className="container relative mx-auto py-16 px-4">
           <div className="grid lg:grid-cols-5 gap-8 items-center">
@@ -127,10 +129,36 @@ const Index = () => {
         </div>
       </section>
 
+      {/* Mobile Hero */}
+      <section className="relative overflow-hidden block md:hidden">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex flex-col items-center text-center space-y-4">
+            <h1 className="text-3xl font-bold text-crypto-primary">
+              Claim Your Spot
+            </h1>
+            <p className="text-sm text-gray-400">
+              Join 500 exclusive projects on Solana
+            </p>
+            <Button
+              size="lg"
+              className="bg-crypto-primary hover:bg-crypto-primary-dark text-white w-full"
+              onClick={handleStartBidding}
+            >
+              <Rocket className="mr-2 h-4 w-4" />
+              Start Bidding
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* Main Content */}
-      <main className="container mx-auto py-8 px-4">
-        <MobileDropdown />
-        <Grid />
+      <main className="flex-1">
+        <div className="hidden md:block h-full">
+          <Grid />
+        </div>
+        <div className="block md:hidden">
+          <MobileGrid />
+        </div>
         {selectedSpotId !== null && isSpotModalOpen && (
           <SpotModal
             spotId={selectedSpotId}
@@ -152,6 +180,4 @@ const Index = () => {
       </Dialog>
     </div>
   );
-};
-
-export default Index;
+}
